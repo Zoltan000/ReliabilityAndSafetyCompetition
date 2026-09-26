@@ -14,6 +14,8 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_failure_hazard_window.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_motor_signal_correlation.py
+uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy --with scipy \
+  python analysis/failure_interactions/plot_motor_failure_precursor_by_load.py
 ```
 
 ## Overview
@@ -194,6 +196,36 @@ each point marked if it falls in the 30-day window before a `Motor_Reducer` fail
   Motor-Reducer failure, matching `cm_precursors.csv`'s precursor scores
   (current/throughput +0.31σ, motor temp excess +0.38σ) as an actual picture rather
   than a single summary number.
+
+## 6. Does the motor precursor effect hold up within each load class? — [`motor_failure_precursor_by_load.png`](motor_failure_precursor_by_load.png)
+
+![Motor failure precursor by load](motor_failure_precursor_by_load.png)
+
+Direct follow-up to §5's long hot-side tail on Heavy's raw temperature/current
+distributions: is that tail mostly load, mostly failure-proximity, or both? Splits
+baseline vs. the 30-day pre-`Motor_Reducer`-failure window **within each `Load_Class`
+separately** (2 signals × 3 load classes = 6 panels), with a proper two-sample
+Welch's t-test and Cohen's d effect size per panel (source:
+[`motor_failure_precursor_by_load.csv`](motor_failure_precursor_by_load.csv)).
+
+**Both signals rise before a Motor-Reducer failure, independently in every load
+class, with a moderate-to-large effect size (not a huge-n-trivial-effect situation
+like the retracted §5-in-reliability_over_time throughput claim — d=0.53–0.69
+throughout):**
+
+| Signal | Light | Medium | Heavy |
+|---|---:|---:|---:|
+| Motor temperature, mean rise | +3.10 °C (d=0.65) | +3.57 °C (d=0.69) | +3.86 °C (d=0.69) |
+| Motor current, mean rise | +0.25 A (d=0.53) | +0.36 A (d=0.59) | +0.42 A (d=0.60) |
+
+The pre-failure distribution isn't just shifted right in each panel — it visibly has a
+heavier tail extending well past the baseline distribution's range, for both signals,
+in all three load classes. That confirms §5's long hot-side tail on Heavy's overall
+temperature/current distribution is a real mix of two stacked effects: Heavy
+conveyors run hotter/higher-current on average (§5), *and* every load class
+independently shows its own additional pre-failure spike on top of that baseline —
+this is a genuine precursor signal, not an artifact of Heavy conveyors just running
+hot in general.
 
 ## Implications for Req. 1
 
