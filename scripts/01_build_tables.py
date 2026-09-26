@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from conveyor.evaluate import sealed_conveyors  # noqa: E402
 from conveyor.features import daily_features, features_asof  # noqa: E402
 from conveyor.io import clean, iter_conveyors, load_conveyor, load_fleet, season_of  # noqa: E402
 from conveyor.labels import labels_for  # noqa: E402
@@ -43,10 +44,16 @@ def main():
     CACHE.mkdir(parents=True, exist_ok=True)
     ART.mkdir(exist_ok=True)
     fleet = load_fleet(FLEET)
-    seas = season_of(fleet["Date"])
-    fleet_tmax = [float(fleet["Temperature_Max_C"][seas == s].mean()) for s in range(4)]
+    # Climatology feeds the model (features.py), so it must not see the sealed conveyors: fit it on the
+    # non-sealed conveyors only, even though the fleet-wide cache below still covers every conveyor.
+    conv_plant = fleet.groupby("Conveyor_ID")["Plant_ID"].first()
+    sealed = sealed_conveyors(conv_plant)
+    clim_fleet = fleet[~fleet["Conveyor_ID"].isin(sealed)]
+    seas = season_of(clim_fleet["Date"])
+    fleet_tmax = [float(clim_fleet["Temperature_Max_C"][seas == s].mean()) for s in range(4)]
     (ART / "climatology.json").write_text(json.dumps({"fleet_tmax_by_season_DJF_MAM_JJA_SON": fleet_tmax}, indent=1))
-    print(f"loaded {len(fleet):,} rows in {time.time()-t0:.0f}s; fleet Tmax by season {np.round(fleet_tmax, 2)}")
+    print(f"loaded {len(fleet):,} rows in {time.time()-t0:.0f}s ({len(sealed)} sealed conveyors excluded from "
+          f"climatology); fleet Tmax by season {np.round(fleet_tmax, 2)}")
 
     feats, labs = [], []
     for cid, df in iter_conveyors(fleet):

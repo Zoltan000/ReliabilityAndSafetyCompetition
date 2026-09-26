@@ -99,6 +99,8 @@ Plan of record: [docs/PLAN.md](docs/PLAN.md). It uses direct supervised models o
   - motor current/throughput: +0.31 before motor-reducer failures;
   - motor temperature excess: +0.38 before motor-reducer failures;
   - bearings: ≈+0.05 only.
+- **Speed-sensor spike years are only partly a cohort effect** (`scripts/02_reliability_analysis.py` §F -> `outputs/req1/speed_sensor_spikes.csv`). Failures in spike years (2010/2012/2016/2019/2022) skew toward older sensors than non-spike-year failures (mean 3.11 vs. 2.38 years since last install/replacement, +31%), but the age-since-install distribution is smoothly decreasing (mode at 1 year), not a sharp periodic peak — so shared EIS date explains part of the spike pattern, not all of it. Unexplained residual; not worth a feature on its own.
+- **Bad-actor conveyors are real and persistent** (`scripts/02_reliability_analysis.py` §G -> `outputs/req1/frailty_check.csv`). Split each conveyor's history in half and compare its failure rate relative to load-class peers in each half: r = 0.93 fleet-wide (Heavy 0.98, Medium 0.93, Light 0.93) between the two halves. A conveyor that runs hot relative to its peers in years 1-10 keeps running hot in years 11-20 — this is not noise. The model's own-history rate features (`rate_30/90/365`, `*_rate_365` in `features.py`) already capture this by construction, which is a good sign for the direct model's design, but it's also a strong, surprising, defensible Req. 1 slide candidate in its own right.
 
 ## Modeling pipeline (`src/conveyor/`, `scripts/`)
 
@@ -116,6 +118,7 @@ Run from the repo root in order. Heavy steps are 03 and 05. Set `CONVEYOR_XGB_DE
 
 - `features.daily_features()` is causal. The same function gives training features (every origin) and inference features (last row), so never add a feature that reads rows after the origin. `labels.py` is the only code that looks forward.
 - The sealed conveyors (`evaluate.sealed_conveyors`, ~15% per plant, including P02CV27) are excluded from CV and scored once, in step 05.
+- **This exclusion also covers the hard-coded model constants**, not just CV folds: `features.BRG_BETA`/`BRG_ETA_OH` and `01_build_tables.py`'s `fleet_tmax` climatology are fit on non-sealed conveyors only (`scripts/02_reliability_analysis.py` §A2 -> `outputs/req1/weibull_bearing_ml_constants.csv`). An earlier version fit both on the full 284-conveyor fleet before the sealed split, which technically leaked into the "final exam" set; the fix moved β 2.98->2.97 and η_Light 45,880->45,886 op-h (a ~0.01% shift — the leak's practical effect was negligible, but the constants must not depend on the sealed set even in principle). The Req. 1 tables above (`weibull_by_clock.csv`, season/CM findings) intentionally keep using the full fleet — that's honest fleet-wide reporting, not a model input.
 - Grouped CV, 5 folds, seed 0, 3-year downtime error: `eb:1000` 9.1% (conveyors < 1 year old: 21%) vs `direct` **4.5%** (< 1 year old: 5.9%, bias ≈ 0). Next-failure timing is about equal (log-error 0.645 vs 0.649, mostly irreducible randomness). The 5th-failure log-error improves from 0.30 to 0.27. Component accuracy of `direct` (0.859) is slightly *below* always predicting Bearing (0.864), so the component classifier needs work.
 
 ## Hard requirements for the forecasting tool

@@ -18,6 +18,7 @@ import pandas as pd
 from lifelines import WeibullAFTFitter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from conveyor.evaluate import sealed_conveyors  # noqa: E402
 from conveyor.io import COMPONENTS, load_fleet, season_of  # noqa: E402
 
 warnings.filterwarnings("ignore")
@@ -109,6 +110,20 @@ def main():
     print("\n(first life vs renewed, op_h clock)")
     print(wt[(wt.clock == "op_h") & (wt.intervals != "all")][["component", "intervals", "n_ev", "beta", "eta_Light"]].to_string(index=False))
 
+    print("\n## A2. Bearing Weibull (op_h, all intervals), sealed conveyors excluded -> ML constants for features.py")
+    print("(the fleet-wide table above is for Req. 1 reporting only; the model's own hard-coded BRG_BETA/BRG_ETA_OH")
+    print(" must never see the sealed holdout, so they are fit separately here)")
+    conv_plant = f.groupby("Conveyor_ID")["Plant_ID"].first()
+    sealed = sealed_conveyors(conv_plant)
+    iv_brg_ml = pd.read_parquet(OUT / "intervals_Bearing.parquet")
+    iv_brg_ml = iv_brg_ml[~iv_brg_ml.cid.isin(sealed)]
+    ml_rows = [{"component": "Bearing", "intervals": "all_ex_sealed", **r}
+               for r in weibull_by_clock(iv_brg_ml) if r["clock"] == "op_h"]
+    ml = pd.DataFrame(ml_rows)
+    ml.to_csv(OUT / "weibull_bearing_ml_constants.csv", index=False)
+    print(f"({len(sealed)} sealed conveyors excluded)")
+    print(ml.to_string(index=False))
+
     print("\n## B. Mean interval (op h) by renewal index (imperfect repair?)")
     for comp in ["Bearing", "Conveyor_Belt", "Motor_Reducer"]:
         iv = pd.read_parquet(OUT / f"intervals_{comp}.parquet")
@@ -168,6 +183,40 @@ def main():
     cm = pd.DataFrame(rows)
     cm.to_csv(OUT / "cm_precursors.csv", index=False)
     print(cm.to_string(index=False))
+
+    print("\n## F. Speed-sensor spike years: does time since last install/replacement explain them?")
+    print("(all conveyors share EIS_Date 2005-01-01, so a fleet-wide age cohort shows up as a calendar-year spike)")
+    SPIKE_YEARS = {2010, 2012, 2016, 2019, 2022}
+    sr_date = f["Date"].where(f["Sensor_Replacement"].fillna(0).to_numpy() == 1)
+    last_repl_before = sr_date.groupby(f["Conveyor_ID"]).transform(lambda s: s.ffill().shift(1))
+    last_install = last_repl_before.fillna(pd.Series(pd.to_datetime(f["EIS_Date"]).to_numpy(), index=f.index))
+    years_since = (f["Date"] - last_install).dt.days / 365.25
+    ss_mask = (f.Daily_State == "FAILURE_DAY") & (f.Failure_Type == "Speed_Sensor")
+    ss = pd.DataFrame({"Conveyor_ID": f.Conveyor_ID[ss_mask].to_numpy(),
+                        "year": f.Date[ss_mask].dt.year.to_numpy(),
+                        "years_since_last_install": years_since[ss_mask].to_numpy()})
+    ss["is_spike_year"] = ss["year"].isin(SPIKE_YEARS)
+    ss.to_csv(OUT / "speed_sensor_spikes.csv", index=False)
+    print(ss.groupby("is_spike_year")["years_since_last_install"].agg(["count", "mean", "median", "std"]).round(2).to_string())
+    hist = ss["years_since_last_install"].round().value_counts().sort_index()
+    print("\nfailures by whole years since last install/replacement:")
+    print(hist.to_string())
+
+    print("\n## G. Bad-actor conveyors: does a conveyor's own excess failure rate persist across time?")
+    print("(each conveyor's history split in half; relative-to-load-class-peers rate in half 1 vs half 2)")
+    n_days = f.groupby("Conveyor_ID")["Conveyor_ID"].transform("size")
+    half = np.where(f["day_idx"].to_numpy() < (n_days.to_numpy() // 2), 1, 2)
+    g = pd.DataFrame({"cid": f.Conveyor_ID.to_numpy(), "load": f.Load_Class.to_numpy(), "half": half,
+                       "at_risk": at_risk.to_numpy(), "fail": fail.to_numpy()})
+    rate = g.groupby(["cid", "load", "half"], as_index=False).agg(at_risk_days=("at_risk", "sum"), fails=("fail", "sum"))
+    rate["rate"] = rate["fails"] / rate["at_risk_days"].replace(0, np.nan)
+    rate["rel_rate"] = rate["rate"] / rate.groupby(["load", "half"])["rate"].transform("mean")
+    piv = rate.pivot(index=["cid", "load"], columns="half", values="rel_rate").reset_index()
+    piv.columns = ["cid", "load", "rel_rate_h1", "rel_rate_h2"]
+    piv.to_csv(OUT / "frailty_check.csv", index=False)
+    corr_overall = piv[["rel_rate_h1", "rel_rate_h2"]].corr().iloc[0, 1]
+    print(f"correlation of relative failure rate, first half vs second half of history: overall r={corr_overall:.3f}")
+    print(piv.groupby("load").apply(lambda d: d["rel_rate_h1"].corr(d["rel_rate_h2"])).round(3).rename("r_by_load").to_string())
 
 
 if __name__ == "__main__":

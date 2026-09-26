@@ -12,10 +12,11 @@ import pandas as pd
 from .io import COMPONENTS, STATES, season_of
 
 PM_MONTH_DAYS = [(3, 15), (7, 15), (12, 15)]
-# Fleet Weibull fit of bearing-position renewal intervals on the operating-hour clock
-# (scripts/02_reliability_analysis.py -> outputs/req1/weibull_by_clock.csv): common beta, eta by load class.
-BRG_BETA = 2.98
-BRG_ETA_OH = {0: 45880.0, 1: 45880.0 * 0.162, 2: 45880.0 * 0.079}  # Light, Medium, Heavy
+# Weibull fit of bearing-position renewal intervals on the operating-hour clock, EXCLUDING the sealed
+# holdout conveyors (scripts/02_reliability_analysis.py §A2 -> outputs/req1/weibull_bearing_ml_constants.csv):
+# common beta, eta by load class. Must stay fit on non-sealed conveyors only; see evaluate.sealed_conveyors.
+BRG_BETA = 2.97
+BRG_ETA_OH = {0: 45885.6, 1: 45885.6 * 0.162, 2: 45885.6 * 0.079}  # Light, Medium, Heavy
 HORIZON_DAYS = 1096  # 3 years
 CM_SIGNALS = ["vib", "cur_per_tp", "vdrop_per_cur", "mtemp_excess"]
 

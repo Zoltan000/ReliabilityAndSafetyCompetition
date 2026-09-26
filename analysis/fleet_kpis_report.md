@@ -56,6 +56,7 @@ Every figure below comes from `analysis/fleet_kpis.sql`.
 - Measure **b** is the reliability-relevant belt life.
 - Measure **a** mostly reflects conveyor age at the time of failure.
 - Replacement belts last about 34% fewer hours than the original belt. This points to imperfect repair, or to replacement belts being different from the originals.
+  - **Correction (see `CLAUDE.md`, "Req. 1 findings"):** this is a Simpson's-paradox artifact, not imperfect repair. Belt replacements are dominated by Heavy conveyors (which fail faster from load, not from being repaired worse); once load class is controlled for (`scripts/02_reliability_analysis.py`, `outputs/req1/weibull_by_clock.csv`), first-life and renewed-life η are within ~1.4% of each other. Renewal is effectively perfect.
 
 ## 4. Per-component reliability
 
