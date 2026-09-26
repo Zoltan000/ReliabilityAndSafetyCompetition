@@ -40,6 +40,9 @@ def style(ax):
     ax.set_axisbelow(True)
 
 
+MIN_N_FOR_KDE = 15
+
+
 def kde_curve(vals, x_hi):
     # Reflection boundary correction: a plain KDE is biased near a hard boundary at 0
     # (it smooths mass to negative values that then just vanishes, which for a
@@ -48,10 +51,20 @@ def kde_curve(vals, x_hi):
     # Controller_PC before adding this). Mirroring the data across 0 and doubling the
     # resulting density on the positive side is the standard fix.
     xs = np.linspace(0, x_hi, 300)
-    if len(vals) < 15:
-        return xs, np.zeros_like(xs)
     reflected = np.concatenate([vals, -vals])
     return xs, 2 * gaussian_kde(reflected)(xs)
+
+
+def draw_group(ax, vals, x_hi, color, label):
+    """KDE curve if there's enough data to trust one; otherwise honest rug ticks --
+    never a fake flat/zero line, which would misread as "this never happens"."""
+    n = len(vals)
+    if n >= MIN_N_FOR_KDE:
+        xs, ys = kde_curve(vals, x_hi)
+        ax.plot(xs, ys, color=color, lw=2.2, label=f"{label} (n={n:,})")
+    else:
+        ax.plot(vals, np.zeros(n), "|", color=color, ms=18, mew=2.5,
+                 label=f"{label} (n={n} — too few for a curve, actual failure times shown)")
 
 
 def main():
@@ -65,8 +78,7 @@ def main():
         ax = axes[0]
         for load in ["Light", "Medium", "Heavy"]:
             g = ev[ev.load == load]
-            xs, ys = kde_curve(g.op_h.to_numpy(), x_hi)
-            ax.plot(xs, ys, color=LOAD_COLOR[load], lw=2.2, label=f"{load} (n={len(g):,})")
+            draw_group(ax, g.op_h.to_numpy(), x_hi, LOAD_COLOR[load], load)
         ax.set_title("By Load_Class", fontsize=11)
         ax.set_xlabel("Hours until failure")
         ax.set_ylabel("Density")
@@ -76,10 +88,8 @@ def main():
         ax = axes[1]
         first = ev[ev.renewal == 0]
         later = ev[ev.renewal >= 1]
-        xs, ys = kde_curve(first.op_h.to_numpy(), x_hi)
-        ax.plot(xs, ys, color=BLUE, lw=2.2, label=f"first life (n={len(first):,})")
-        xs, ys = kde_curve(later.op_h.to_numpy(), x_hi)
-        ax.plot(xs, ys, color=PURPLE, lw=2.2, label=f"replacement, any renewal ≥1 (n={len(later):,})")
+        draw_group(ax, first.op_h.to_numpy(), x_hi, BLUE, "first life")
+        draw_group(ax, later.op_h.to_numpy(), x_hi, PURPLE, "replacement, any renewal ≥1")
         ax.set_title("By first life vs. replacement", fontsize=11)
         ax.set_xlabel("Hours until failure")
         ax.set_ylabel("Density")

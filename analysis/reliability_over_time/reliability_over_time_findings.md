@@ -232,26 +232,39 @@ sparse for a density estimate). Each gets two panels: by `Load_Class`, and by fi
 life (renewal 0) vs. any replacement (renewal ≥1). Reuses
 `outputs/req1/intervals_<component>.parquet` directly, no fleet re-query.
 
-**Methodological note, important for anyone reusing `plot_other_component_bell_curves.py`
-or `plot_bearing_lifetime_vs_load_3d.py`:** a plain Gaussian KDE is biased near a hard
-boundary at zero — it smooths probability mass to negative values that then just
-vanish, which for a near-random or infant-mortality component (true density highest
-*at* zero) fakes a peak away from zero that isn't really there. Caught this on
-Controller_PC (β≈0.99, should have maximum density at hours=0): the first KDE attempt
-showed a false peak around 8,000 hours; the raw histogram (rate 0.079/hour in the
-first 1,000 hours, declining monotonically after) confirmed the peak was fake. Fixed
-with a standard reflection correction (mirror the data across zero, double the
-resulting density on the positive side) in both this script and
-`plot_bearing_lifetime_vs_load_3d.py` (no visible effect there — Bearing is strongly
-wear-out, so true density near zero really is ~0 — but applied for consistency).
+**Two methodological bugs caught and fixed while building this, both worth recording
+for anyone reusing `plot_other_component_bell_curves.py` or
+`plot_bearing_lifetime_vs_load_3d.py`:**
+
+1. A plain Gaussian KDE is biased near a hard boundary at zero — it smooths
+   probability mass to negative values that then just vanish, which for a near-random
+   or infant-mortality component (true density highest *at* zero) fakes a peak away
+   from zero that isn't really there. Caught this on Controller_PC (β≈0.99, should have
+   maximum density at hours=0): the first KDE attempt showed a false peak around 8,000
+   hours; the raw histogram (rate 0.079/hour in the first 1,000 hours, declining
+   monotonically after) confirmed the peak was fake. Fixed with a standard reflection
+   correction (mirror the data across zero, double the resulting density on the
+   positive side) in both this script and `plot_bearing_lifetime_vs_load_3d.py` (no
+   visible effect there — Bearing is strongly wear-out, so true density near zero
+   really is ~0 — but applied for consistency).
+2. A guard meant to protect against unreliable density estimates from tiny samples
+   (`if len(vals) < 15: return zeros`) was silently plotting a **flat line at exactly
+   0** for any group with too few events — which reads as "this never happens," not
+   "not enough data to draw a curve." Caught when asked directly whether Heavy
+   Control_Software failures (n=6) are really zero: they are not — Heavy conveyors
+   failed by Control_Software 6 times (at 7,956 / 35,388 / 45,900 / 49,788 / 56,952 /
+   81,300 op-h), a real rate, just too few events for a reliable curve shape. Fixed:
+   groups with n < 15 now render as rug ticks at their actual failure times instead of
+   a fabricated zero line.
 
 - **Speed_Sensor's bell curve is visibly bimodal** once correctly shaped: a normal
   random-failure hump early, declining, then a second real bump right at the §1/§6
   ceiling — both mechanisms visible in one picture.
 - **Control_Software** clearly shows its infant-mortality shape (β=0.91): Light-class
-  failures peak early (~10,000 op-h) and decay; Heavy has only 6 failures fleet-wide,
-  too few to show a real shape (flat near-zero line — a sample-size limitation, not a
-  finding).
+  failures peak early (~10,000 op-h) and decay; Heavy's 6 failure times (rug ticks,
+  too few for a curve) spread across nearly the full range, roughly tracking Medium's
+  curve — consistent with Heavy failing by software about as rarely/randomly as
+  Medium, just with fewer Heavy conveyors (58 vs. 98) to generate events over 20 years.
 - **Controller_PC and Speed_Sensor (pre-ceiling) both show near-load-independent
   curves** (all three `Load_Class` lines overlap), consistent with their β≈1 fits —
   load doesn't shift these the way it does Bearing/Belt/Motor-Reducer.
