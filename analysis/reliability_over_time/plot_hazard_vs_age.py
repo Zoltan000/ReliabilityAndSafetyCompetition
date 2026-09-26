@@ -42,6 +42,18 @@ def style(ax):
     ax.set_axisbelow(True)
 
 
+def cap_for(d, min_risk=30):
+    """The largest op_h with at least min_risk intervals still at/beyond it -- i.e. how
+    far the curve can honestly extend before too few real units remain to support the
+    estimate. A fixed percentile (e.g. 97th) is the wrong rule here: for a group this
+    large (n in the hundreds of thousands for Bearing) it cuts the curve off well
+    before the data runs out, hiding real shape near the tail; for a small group it
+    could do the opposite. A minimum-risk-count rule adapts to each group's actual size."""
+    vals = np.sort(d["op_h"].to_numpy())
+    k = min(min_risk, len(vals))
+    return float(vals[-k])
+
+
 def smoothed_curve(df, cap):
     # Kernel-smoothed hazard estimates are boundary-biased near the edge of the observed
     # timeline; compute over a wider range and only return the inner (visible) part so the
@@ -74,12 +86,12 @@ def main():
                 d = iv[iv.load == load]
                 if d.event.sum() < 20:
                     continue
-                cap = float(d["op_h"].quantile(0.97))
+                cap = cap_for(d)
                 y, x = smoothed_curve(d, cap)
                 ax.plot(x / 1000, y * 1000, color=LOAD_COLOR[load], lw=2.2, label=load)
                 rows_out.append(pd.DataFrame({"component": comp, "load": load, "op_h": x, "hazard_per_op_h": y}))
         else:
-            cap = float(iv["op_h"].quantile(0.97))
+            cap = cap_for(iv)
             y, x = smoothed_curve(iv, cap)
             ax.plot(x / 1000, y * 1000, color=BLUE, lw=2.2, label="all loads")
             rows_out.append(pd.DataFrame({"component": comp, "load": "all", "op_h": x, "hazard_per_op_h": y}))

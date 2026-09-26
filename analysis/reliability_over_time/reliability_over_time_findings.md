@@ -46,8 +46,21 @@ per component.
   into a region with zero real data for those classes (Heavy bearings never exceed
   8,028 op-h fleet-wide; Medium never exceed 18,300) and just flattened out with
   nothing left to estimate from. Caught when asked what the flat Heavy/Medium tail
-  meant. Fixed: each load class now gets its own cap from its own data — the plateau
-  was not a real "steady state," it was the smoother running out of information.
+  meant. First fix used each load class's own 97th percentile as its cap — better, but
+  still cut Heavy off at 68% of its real range (5,496 of 8,028 op-h) and hid a genuine
+  question: does hazard really flatten near the true edge, or was that first version
+  still too conservative? **Second fix, `cap_for()`:** cap is now the largest op_h with
+  at least 30 real intervals still at/beyond it (adaptive to each group's own size,
+  unlike a fixed percentile) — Heavy now shows to 7,320 of 8,028 op-h (91%). Even with
+  nearly the full range visible, there is still no peak-and-decline — hazard just keeps
+  rising until the cutoff. That's a second, independent confirmation that the original
+  peak-then-decline shape (before either fix) was an artifact: on top of the pointless
+  flat extrapolation, kernel-smoothed hazard estimators are also biased right at a hard
+  data edge (nothing on the far side to average against, so the estimate artificially
+  sags) — a real limitation of the method at the boundary, not a real property of
+  bearings, and not something any smoothing method can safely correct right at the edge
+  where only a handful of units remain. The curves now end cleanly where real support
+  runs out rather than guessing at that last sliver.
 - **Speed sensor, Controller PC, Control Software** are much flatter overall (β close
   to 1), matching the "near-random"/"random" classification.
 - **Unexpected, real finding: Speed_Sensor has a hard ceiling around 50,016 operating
