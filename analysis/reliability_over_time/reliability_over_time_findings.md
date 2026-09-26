@@ -61,6 +61,19 @@ per component.
   bearings, and not something any smoothing method can safely correct right at the edge
   where only a handful of units remain. The curves now end cleanly where real support
   runs out rather than guessing at that last sliver.
+- **Third, independent cross-check** (asked directly: "are we sure this is correct
+  now?"): overlaid the parametric Weibull hazard curve (β, η from
+  `outputs/req1/weibull_by_clock.csv`, an MLE fit — a completely different method from
+  the Nelson-Aalen smoothing used for the empirical curves, with no smoothing/boundary
+  bias at all) on top of the empirical curves for Heavy, in dashed lines. A Weibull
+  hazard with β>1 is mathematically strictly increasing
+  (h(t)=(β/η)(t/η)^(β-1), β-1>0) — it cannot produce a peak-then-decline by
+  construction. It tracks the empirical curve closely for all three components all the
+  way to the cutoff (Bearing and Belt overlap almost exactly; Motor-Reducer's empirical
+  line has a small real wiggle around 7,000–9,000 op-h that the smooth parametric fit
+  doesn't capture, but the trend still agrees). Two independent methods landing in the
+  same place, with no peak or decline in either, is the strongest confirmation this
+  data can reasonably give that the original peak-then-decline shape was an artifact.
 - **Speed sensor, Controller PC, Control Software** are much flatter overall (β close
   to 1), matching the "near-random"/"random" classification.
 - **Unexpected, real finding: Speed_Sensor has a hard ceiling around 50,016 operating

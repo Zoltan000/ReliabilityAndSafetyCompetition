@@ -68,6 +68,25 @@ def smoothed_curve(df, cap):
     return np.interp(timeline, extended, y_ext), timeline
 
 
+def weibull_params(comp):
+    """beta and eta per load class from outputs/req1/weibull_by_clock.csv (op_h clock,
+    all intervals) -- an MLE fit, completely independent of the Nelson-Aalen smoothing
+    used elsewhere in this script. Used as a cross-check: a Weibull hazard with
+    beta > 1 is mathematically strictly increasing (h(t) = (beta/eta)*(t/eta)^(beta-1),
+    and beta-1 > 0), so it CANNOT produce a peak-then-decline. If it tracks the
+    empirical curve, that's strong evidence the empirical curve's shape is real."""
+    w = pd.read_csv(IN / "weibull_by_clock.csv")
+    row = w[(w.component == comp) & (w.intervals == "all") & (w.clock == "op_h")].iloc[0]
+    beta = row["beta"]
+    eta = {"Light": row["eta_Light"], "Medium": row["eta_Light"] * row["eta_Medium/Light"],
+           "Heavy": row["eta_Light"] * row["eta_Heavy/Light"]}
+    return beta, eta
+
+
+def weibull_hazard(t, beta, eta):
+    return (beta / eta) * (np.maximum(t, 1e-6) / eta) ** (beta - 1)
+
+
 def main():
     fig, axes = plt.subplots(2, 4, figsize=(17, 7.5))
     axes = axes.flatten()
@@ -82,13 +101,17 @@ def main():
             # bearings never exceed 8,028 op-h fleet-wide, Medium never exceed 18,300 --
             # producing a flat tail that reflects "no data left," not a real hazard
             # plateau. Caught when asked what the flat Heavy/Medium tail meant.
+            beta, eta = weibull_params(comp)
             for load in ["Light", "Medium", "Heavy"]:
                 d = iv[iv.load == load]
                 if d.event.sum() < 20:
                     continue
                 cap = cap_for(d)
                 y, x = smoothed_curve(d, cap)
-                ax.plot(x / 1000, y * 1000, color=LOAD_COLOR[load], lw=2.2, label=load)
+                ax.plot(x / 1000, y * 1000, color=LOAD_COLOR[load], lw=2.2, label=f"{load} (empirical)")
+                ax.plot(x / 1000, weibull_hazard(x, beta, eta[load]) * 1000, color=LOAD_COLOR[load],
+                        lw=1.4, ls="--", alpha=0.8,
+                        label=f"{load} (Weibull fit, β={beta:.2f})" if load == "Heavy" else None)
                 rows_out.append(pd.DataFrame({"component": comp, "load": load, "op_h": x, "hazard_per_op_h": y}))
         else:
             cap = cap_for(iv)
