@@ -21,6 +21,46 @@ from .models import DirectML
 H_PER_FAILURE = 36.0  # 12 h on the failure day + one 24 h corrective day (constant in the fleet data)
 H_PER_PM = 24.0
 
+# Expert rule (fleet observation): speed sensors have a hard design-life ceiling on the operating-hours clock.
+# Fleet max life is 50,016 op-h and 158 of 1,838 lives end in 49,980-50,016 (50,000 +/- one half-day).
+# Grouped-CV check on held-out conveyors: when the ceiling is < 30 days away, a speed-sensor failure follows
+# with probability 0.93 and the date error is within +/-2 days (P10/P90); 30-90 days away: 0.65; further: 0.44.
+SS_CEILING_OH = 50_000.0
+SS_RULE_CONFIDENCE = [(30, 0.93), (90, 0.65), (np.inf, 0.44)]  # (days-to-ceiling upper bound, P(failure there))
+
+
+def speed_sensor_ceiling_days(X: pd.DataFrame) -> np.ndarray:
+    """Days from the origin until the speed sensor reaches SS_CEILING_OH, at the conveyor's average op-h per day."""
+    oh_per_day = X["cum_oh"].to_numpy(dtype=float) / (X["age_days"].to_numpy(dtype=float) + 1)
+    return np.ceil((SS_CEILING_OH - X["speed_sensor_since_oh"].to_numpy(dtype=float)) / np.maximum(oh_per_day, 1.0))
+
+
+def apply_expert_rules(pred: dict, X: pd.DataFrame) -> dict:
+    """Insert a rule-based Speed_Sensor failure into the next-5 sequence when its ceiling date comes first.
+
+    Later ML failures shift back one slot (and 2 days: the failure day + corrective day). Adds `rule{k}` flags.
+    """
+    ss = COMPONENTS.index("Speed_Sensor")
+    out = {k: np.array(v, copy=True) for k, v in pred.items()}
+    T = np.column_stack([out[f"t{k}"] for k in range(1, N_NEXT + 1)]).astype(float)
+    P = np.stack([out[f"p{k}"] for k in range(1, N_NEXT + 1)], axis=1)
+    R = np.zeros(T.shape, dtype=bool)
+    dc = speed_sensor_ceiling_days(X)
+    for i in np.flatnonzero((dc >= 1) & (dc < T[:, -1])):
+        j = int(np.searchsorted(T[i], dc[i]))
+        P[i, :, ss] = 0.0  # the rule now owns the sensor failure; a renewed sensor won't fail again this soon
+        P[i] /= P[i].sum(axis=1, keepdims=True)
+        conf = next(c for ub, c in SS_RULE_CONFIDENCE if dc[i] < ub)
+        p_rule = np.full(P.shape[2], (1 - conf) / (P.shape[2] - 1))
+        p_rule[ss] = conf
+        T[i] = np.concatenate([T[i, :j], [dc[i]], T[i, j:-1] + 2])
+        P[i] = np.concatenate([P[i, :j], p_rule[None], P[i, j:-1]])
+        R[i] = np.concatenate([R[i, :j], [True], R[i, j:-1]])
+    for k in range(N_NEXT):
+        out[f"t{k+1}"], out[f"p{k+1}"], out[f"rule{k+1}"] = T[:, k], P[:, k], R[:, k]
+        out[f"c{k+1}"] = P[:, k].argmax(axis=1)
+    return out
+
 
 def load_models(art: Path) -> tuple[list[DirectML], dict]:
     art = Path(art)
@@ -52,17 +92,26 @@ def forecast(path: str, artifacts: str | Path = "artifacts") -> dict:
     models, meta = load_models(art)
     cal = meta.get("calibration", {})
     X = features_asof(df, fleet_tmax)
-    pred = ensemble_predict(models, X)
+    pred = apply_expert_rules(ensemble_predict(models, X), X)
     last_day = pd.Timestamp(df["Date"].iloc[-1])
     load = str(df["Load_Class"].iloc[0])
 
     # Req. 2: next five failures.
     rows = []
+    n_ml = 0
     for k in range(1, N_NEXT + 1):
         t = float(pred[f"t{k}"][0])
         proba = pred[f"p{k}"][0]
         order = np.argsort(proba)[::-1]
-        lo_q, hi_q = cal.get("t_logratio_q10_q90", {}).get(load, {}).get(str(k), [np.nan, np.nan])
+        if pred[f"rule{k}"][0]:
+            source = "Rule: speed-sensor 50,000 op-h design-life ceiling"
+            lo_d, hi_d = max(1, round(t - max(2.0, 0.3 * t))), round(t + 3)
+        else:
+            n_ml += 1  # ML slot n_ml keeps the calibration of the model that predicted it
+            source = "ML model"
+            lo_q, hi_q = cal.get("t_logratio_q10_q90", {}).get(load, {}).get(str(n_ml), [np.nan, np.nan])
+            lo_d = max(1, round(t * np.exp(lo_q))) if np.isfinite(lo_q) else None
+            hi_d = round(t * np.exp(hi_q)) if np.isfinite(hi_q) else None
         rows.append({
             "Failure #": k,
             "Expected component": COMPONENTS[order[0]],
@@ -70,8 +119,9 @@ def forecast(path: str, artifacts: str | Path = "artifacts") -> dict:
             "Runner-up": f"{COMPONENTS[order[1]]} ({proba[order[1]]:.2f})",
             "Expected date": (last_day + pd.Timedelta(days=round(t))).date(),
             "Days from last observed day": round(t),
-            "P10 date": (last_day + pd.Timedelta(days=max(1, round(t * np.exp(lo_q))))).date() if np.isfinite(lo_q) else None,
-            "P90 date": (last_day + pd.Timedelta(days=round(t * np.exp(hi_q)))).date() if np.isfinite(hi_q) else None,
+            "P10 date": (last_day + pd.Timedelta(days=lo_d)).date() if lo_d is not None else None,
+            "P90 date": (last_day + pd.Timedelta(days=hi_d)).date() if hi_d is not None else None,
+            "Source": source,
         })
     next5 = pd.DataFrame(rows)
 
@@ -99,6 +149,7 @@ def forecast(path: str, artifacts: str | Path = "artifacts") -> dict:
         "expected_planned_downtime_h": round(float(monthly["Planned downtime h"].sum()), 1),
         "expected_total_downtime_h": round(total, 1),
         "total_downtime_P10_P90_h": (round(total * lo_r, 0), round(total * hi_r, 0)) if np.isfinite(lo_r) else None,
+        "speed_sensor_days_to_50k_oh_ceiling": int(speed_sensor_ceiling_days(X)[0]),
     }
     return {"next5": next5, "monthly": monthly, "summary": summary}
 
