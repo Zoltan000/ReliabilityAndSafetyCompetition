@@ -63,16 +63,23 @@ def main():
 
     for ax, comp in zip(axes, NAMES):
         iv = pd.read_parquet(IN / f"intervals_{comp}.parquet")
-        cap = float(iv["op_h"].quantile(0.97))
         if comp in LOAD_SPLIT:
+            # Each load class gets its OWN cap from its OWN data. A shared/pooled cap
+            # (e.g. Light's 97th percentile, ~45k op-h for Bearing) would force Heavy
+            # and Medium curves to extrapolate far past their real range -- Heavy
+            # bearings never exceed 8,028 op-h fleet-wide, Medium never exceed 18,300 --
+            # producing a flat tail that reflects "no data left," not a real hazard
+            # plateau. Caught when asked what the flat Heavy/Medium tail meant.
             for load in ["Light", "Medium", "Heavy"]:
                 d = iv[iv.load == load]
                 if d.event.sum() < 20:
                     continue
+                cap = float(d["op_h"].quantile(0.97))
                 y, x = smoothed_curve(d, cap)
                 ax.plot(x / 1000, y * 1000, color=LOAD_COLOR[load], lw=2.2, label=load)
                 rows_out.append(pd.DataFrame({"component": comp, "load": load, "op_h": x, "hazard_per_op_h": y}))
         else:
+            cap = float(iv["op_h"].quantile(0.97))
             y, x = smoothed_curve(iv, cap)
             ax.plot(x / 1000, y * 1000, color=BLUE, lw=2.2, label="all loads")
             rows_out.append(pd.DataFrame({"component": comp, "load": "all", "op_h": x, "hazard_per_op_h": y}))

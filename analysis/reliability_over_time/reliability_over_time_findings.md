@@ -38,9 +38,16 @@ per component.
 - **Bearings, Belt, and Motor-Reducer** all show the expected wear-out shape — hazard
   rises with age, faster and higher for Heavy than Light — visually confirming β > 1
   and the load-stress-multiplier effect in one picture (this is `beta.png` and
-  `load.png`'s two messages combined into one curve family). Each curve plateaus at
-  high age rather than continuing to rise indefinitely, consistent with mixing
-  first-life and renewed intervals at a component-specific steady state.
+  `load.png`'s two messages combined into one curve family). Each curve climbs
+  continuously until its load class's own data runs out, with no plateau — corrected
+  after a bug: an earlier version computed one shared x-axis cutoff from all three load
+  classes pooled together (Light's 97th percentile, since Light lives far longer and
+  dominates the pooled tail), which forced Heavy and Medium curves to extrapolate deep
+  into a region with zero real data for those classes (Heavy bearings never exceed
+  8,028 op-h fleet-wide; Medium never exceed 18,300) and just flattened out with
+  nothing left to estimate from. Caught when asked what the flat Heavy/Medium tail
+  meant. Fixed: each load class now gets its own cap from its own data — the plateau
+  was not a real "steady state," it was the smoother running out of information.
 - **Speed sensor, Controller PC, Control Software** are much flatter overall (β close
   to 1), matching the "near-random"/"random" classification.
 - **Unexpected, real finding: Speed_Sensor has a hard ceiling around 50,016 operating
