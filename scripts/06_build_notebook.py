@@ -31,7 +31,11 @@ def main():
            "**Method (fitted offline on the full fleet, 284 conveyors × 20 years):** supervised models on features computed "
            "*as of* the last observed day. Labels were the known future of each training origin: days to each of the next 5 failures "
            "(XGBoost AFT, censoring-aware), the component of each (LightGBM multiclass), and failures per future month "
-           "(LightGBM Poisson). Validation is grouped cross-validation where every test fold is a set of whole conveyors. "
+           "(LightGBM Poisson), hyperparameters tuned with Optuna on grouped cross-validation, 5 seeds bagged. "
+           "Validation is grouped cross-validation where every test fold is a set of whole conveyors. "
+           "**Expert rule on top of the ML (fleet observation):** speed sensors have a hard design-life ceiling of "
+           "≈50,000 operating hours (fleet maximum 50,016 h), so when the input conveyor's sensor will reach it before the "
+           "5th predicted failure, a Speed_Sensor failure is inserted at that date (marked `Source = Rule` in the table). "
            "Weather enters only through its known seasonal expectation. Downtime = 36 h per failure (12 h failure day + one "
            "24 h corrective day, constant in the data) + 24 h per planned-maintenance day (3 per year, 15 Mar / 15 Jul / 15 Dec)."),
         md("## 1. Input"),

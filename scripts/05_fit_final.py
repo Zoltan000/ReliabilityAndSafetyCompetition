@@ -18,7 +18,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from conveyor.evaluate import score_by, sealed_conveyors  # noqa: E402
-from conveyor.forecast import ensemble_predict  # noqa: E402
+from conveyor.forecast import apply_expert_rules, ensemble_predict  # noqa: E402
 from conveyor.labels import N_BLOCKS, N_NEXT  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -75,10 +75,12 @@ def main():
         tot = (36 * pred["fail_blocks"] + 24 * pred["pm_blocks"]).sum(axis=1)
         pred["tot_dt_lo"] = tot * np.array([cal["tot_ratio_q10_q90"][l][0] for l in load])
         pred["tot_dt_hi"] = tot * np.array([cal["tot_ratio_q10_q90"][l][1] for l in load])
-        table = score_by(pred, Yte, Xte)
-        table.to_csv("outputs/sealed_test.csv")
-        print(f"\nSEALED TEST ({len(sealed)} conveyors, scored once):")
-        print(table[[c for c in cv.SHOW + ["dt_cover80"] if c in table.columns]].round(3).to_string())
+        for name, p, out in [("ML only", pred, "sealed_test_ml_only.csv"),
+                             ("ML + expert rules = submitted tool", apply_expert_rules(pred, Xte), "sealed_test.csv")]:
+            table = score_by(p, Yte, Xte)
+            table.to_csv(f"outputs/{out}")
+            print(f"\nSEALED TEST, {name} ({len(sealed)} conveyors, scored once):")
+            print(table[[c for c in cv.SHOW + ["dt_cover80"] if c in table.columns]].round(3).to_string())
 
     # Refit on all conveyors -> artifacts.
     ART.mkdir(exist_ok=True)

@@ -129,6 +129,8 @@ Run from the repo root in order. Heavy steps are 03 and 05. Set `CONVEYOR_XGB_DE
   | `c1_acc` (all / Light) | 0.864 / 0.764 | 0.860 / 0.756 | 0.864 / 0.764 |
 
   The tuned classifier now equals "always Bearing" but can't beat it: the next failure's component carries almost no signal beyond the base rate.
+- **Final model = `direct-tuned` + the speed-sensor ceiling expert rule** (`forecast.apply_expert_rules`: sensors never exceed ≈50,000 op-h, fleet max 50,016; teammate finding in `analysis/reliability_over_time/`). On grouped-CV OOF the rule raises speed-sensor recall in the next 5 from 0.012 to 0.091 at 0.905 precision, dated ±2 days when < 30 days away; other metrics unchanged.
+- **Sealed test (spent 2026-09-26, 43 conveyors, 5 seeds; `outputs/sealed_test.csv`):** 3-year downtime error **4.1%** (Light 7.2%, < 1 year 6.0%), bias +14 h, P10–P90 coverage 0.825; `t1_logerr` 0.631, `t5_logerr` 0.259, `c1_acc` 0.871. Matches CV, so there's no sign of overfitting to the CV folds.
 - **Leave-one-plant-out (unseen plant):** `direct` 9.9% (bias −302 h, Heavy 11.9%) vs `eb:1000` 10.7% (Heavy 8.8%). The model partly memorizes plant identity (static fields are plant constants). A fixed blend with `eb:1000` helps LOPO (50/50: 8.8%) but hurts grouped CV (4.4% → 6.0%), so it's not used unconditionally.
 
 ## Hard requirements for the forecasting tool
