@@ -169,6 +169,7 @@ class DirectML:
         for k in range(N_NEXT):
             b = xgb.Booster()
             b.load_model(str(d / f"aft_{k+1}.json"))
+            b.set_param({"device": "cpu"})  # models may be trained on a GPU; inference (Colab) runs on CPU
             m.aft.append(b)
             m.comp.append(lgb.Booster(model_file=str(d / f"comp_{k+1}.txt")))
         return m
