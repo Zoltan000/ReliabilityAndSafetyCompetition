@@ -74,6 +74,24 @@ per component.
   doesn't capture, but the trend still agrees). Two independent methods landing in the
   same place, with no peak or decline in either, is the strongest confirmation this
   data can reasonably give that the original peak-then-decline shape was an artifact.
+- **Every component now shows all 4 groups (All loads + Light + Medium + Heavy), not
+  just the 3 load-driven components** — including Contactor, previously excluded
+  entirely. Thin groups (Contactor's Light n=0/Medium n=1/Heavy n=11;
+  Control_Software's Heavy n=6) render as rug ticks at their actual failure times
+  instead of a fabricated curve; Contactor also gets no Weibull overlay since that fit
+  is degenerate with only 12 events split three ways (comes out to η_Light ≈ 65 million
+  op-h, meaningless).
+- **A real, different peak-then-decline now shows up on the pooled "All loads" curve**
+  for Bearing/Belt/Motor-Reducer — and this one is not an artifact. It's the classic
+  survival-analysis mixture effect: pooling three subpopulations with very different
+  hazard levels (Heavy fails fastest and dominates the early pooled hazard), once every
+  Heavy unit has failed and dropped out of the risk set (~8,000 op-h for Bearing), the
+  pooled curve is left with only the much-lower-hazard Medium/Light survivors, so it
+  genuinely drops before resuming its climb at their gentler pace. The per-load-class
+  lines directly alongside it keep rising with no dip, which is exactly what confirms
+  this is a mixing effect and not the earlier bug repeating — same underlying mechanism
+  as the bearing-frailty (§3) and P06-plant (§4) findings, just visible here as hazard
+  curve shape instead of a rate correlation.
 - **Speed sensor, Controller PC, Control Software** are much flatter overall (β close
   to 1), matching the "near-random"/"random" classification.
 - **Unexpected, real finding: Speed_Sensor has a hard ceiling around 50,016 operating
