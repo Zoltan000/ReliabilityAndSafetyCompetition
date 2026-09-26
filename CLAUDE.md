@@ -30,6 +30,8 @@ Shared repo: `github.com/Zoltan000/ReliabilityAndSafetyCompetition` (`main`).
 | `parquet_to_csv.py` | Helper that dumps the 1-year example to CSV: `python parquet_to_csv.py [N\|all]`. N rows go to `Example_P02CV27_preview.csv` (default 10); `all` writes `Example_P02CV27_1Year.csv` |
 | `Example_P02CV27_preview.csv`, `Example_P02CV27_1Year.csv` | Generated CSV views of the 1-year example, for eyeballing only |
 
+Fleet file shape (checked 2026-09-26): 20 years of data, 2005-01-01 to 2024-12-31. That is ~2.07 million rows for 284 conveyors across 12 plants. Every conveyor has the full 20 years (7,305 daily rows) and all start on 2005-01-01, so there are no staggered EIS dates and no ragged histories in the fleet file.
+
 The two example files are cut-off prefixes of P02CV27, which is also in the fleet file. This matters for validation: when backtesting on P02CV27 (or any cut-off), keep that conveyor's post-cut-off rows out of training, or the result is leakage.
 
 Python env note: `pyarrow` is not installed in the local system Python. Install `pandas pyarrow` in a venv before reading the Parquet files (Colab has both).
