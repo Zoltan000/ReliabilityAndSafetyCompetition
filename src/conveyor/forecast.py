@@ -27,12 +27,21 @@ H_PER_PM = 24.0
 # with probability 0.93 and the date error is within +/-2 days (P10/P90); 30-90 days away: 0.65; further: 0.44.
 SS_CEILING_OH = 50_000.0
 SS_RULE_CONFIDENCE = [(30, 0.93), (90, 0.65), (np.inf, 0.44)]  # (days-to-ceiling upper bound, P(failure there))
+# Lives end at 49,980-50,016 op-h, so a live sensor can already be past 50,000 on the day before it fails (a 50,016
+# life is at 50,004 then; 53 of 158 ceiling lives). Up to this overshoot, the failure is due tomorrow. Beyond it, the
+# sensor clock is likely wrong (e.g. an unrecorded replacement before the file starts), so the rule stays off.
+SS_OVERSHOOT_OH = 24.0
 
 
 def speed_sensor_ceiling_days(X: pd.DataFrame) -> np.ndarray:
-    """Days from the origin until the speed sensor reaches SS_CEILING_OH, at the conveyor's average op-h per day."""
+    """Days from the origin until the speed sensor reaches SS_CEILING_OH, at the conveyor's average op-h per day.
+
+    A sensor already past the ceiling by at most SS_OVERSHOOT_OH gets 1 day; further past, <= 0 (rule off).
+    """
     oh_per_day = X["cum_oh"].to_numpy(dtype=float) / (X["age_days"].to_numpy(dtype=float) + 1)
-    return np.ceil((SS_CEILING_OH - X["speed_sensor_since_oh"].to_numpy(dtype=float)) / np.maximum(oh_per_day, 1.0))
+    since = X["speed_sensor_since_oh"].to_numpy(dtype=float)
+    dc = np.ceil((SS_CEILING_OH - since) / np.maximum(oh_per_day, 1.0))
+    return np.where((since >= SS_CEILING_OH) & (since <= SS_CEILING_OH + SS_OVERSHOOT_OH), 1.0, dc)
 
 
 def apply_expert_rules(pred: dict, X: pd.DataFrame) -> dict:
