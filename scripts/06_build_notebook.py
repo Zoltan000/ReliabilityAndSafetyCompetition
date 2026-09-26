@@ -19,6 +19,7 @@ def main():
     ap.add_argument("--raw-base", default="https://raw.githubusercontent.com/OWNER/REPO/COMMIT_SHA")
     ap.add_argument("--team", default="TEAM MEMBER NAMES")
     ap.add_argument("--out", default="notebooks/Conveyor_Forecast.ipynb")
+    ap.add_argument("--input", default="Example_P02CV27_6Years.parquet", help="default INPUT_PATH shown in the notebook")
     a = ap.parse_args()
 
     md, code = nbf.v4.new_markdown_cell, nbf.v4.new_code_cell
@@ -39,7 +40,7 @@ def main():
            "Weather enters only through its known seasonal expectation. Downtime = 36 h per failure (12 h failure day + one "
            "24 h corrective day, constant in the data) + 24 h per planned-maintenance day (3 per year, 15 Mar / 15 Jul / 15 Dec)."),
         md("## 1. Input"),
-        code('INPUT_PATH = "Example_P02CV27_6Years.parquet"  #@param {type:"string"}\n'
+        code(f'INPUT_PATH = "{a.input}"  #@param {{type:"string"}}\n'
              '# A local path, a mounted Drive path (/content/drive/...), or an http(s) URL.\n'
              f'ARTIFACTS_BASE = "{a.raw_base}"  # pinned commit: artifacts cannot change after submission'),
         md("## 2. Environment"),
