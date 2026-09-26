@@ -98,12 +98,42 @@ def cm_plot(cm):
     fig.savefig(OUT / "cm.png", dpi=220)
 
 
+def accuracy_plot(final_spec="direct"):
+    """3-year downtime % error on held-out conveyors (grouped CV, seed 0): two baselines vs. the final model."""
+    ex = pd.read_csv("outputs/experiments.csv")
+    ex = ex[ex.cv == "gkf5s0"].drop_duplicates("model", keep="last").set_index("model")
+    models = [("own_rate", "Own failure rate", "#b5b3ad"), ("eb:1000", "Fleet prior + own rate", "#b5b3ad"),
+              (final_spec, "Our model", BLUE)]
+    groups = [("all", "All held-out conveyors"), ("age<1y", "Conveyors < 1 year old")]
+    fig, ax = plt.subplots(figsize=(6.2, 3.4))
+    y, ticks, labels = 0.0, [], []
+    for g, gname in groups:
+        ax.text(0, y - 0.55, gname, fontsize=10, fontweight="bold", color=INK, va="center")
+        for m, mname, col in models:
+            v = 100 * ex.loc[m, f"{g}:dt_tot_pct"]
+            ax.barh(y, v, height=0.62, color=col)
+            ax.text(v + 0.6, y, f"{v:.1f}%", va="center", fontsize=9, color=INK,
+                    fontweight="bold" if m == final_spec else "normal")
+            ticks.append(y)
+            labels.append(mname)
+            y += 0.8
+        y += 0.9
+    ax.set_yticks(ticks, labels)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(100 * ex.loc[[m for m, *_ in models], "age<1y:dt_tot_pct"].max() * 1.15, 10))
+    ax.set_xlabel("3-year downtime error, % of actual (mean abs.)")
+    style(ax)
+    fig.tight_layout()
+    fig.savefig(OUT / "accuracy.png", dpi=220)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     w = pd.read_csv(IN / "weibull_by_clock.csv")
     beta_plot(w)
     load_plot(w)
     cm_plot(pd.read_csv(IN / "cm_precursors.csv"))
+    accuracy_plot("direct-tuned")
     print("figures:", sorted(p.name for p in OUT.glob("*.png")))
 
 

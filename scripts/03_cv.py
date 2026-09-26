@@ -1,11 +1,12 @@
 """Grouped CV harness: test folds are whole conveyors (stratified by plant); sealed set excluded.
 
 Usage: .venv/Scripts/python scripts/03_cv.py MODEL [MODEL ...] [--seed S] [--folds K] [--lopo]
-MODEL: own_rate | eb:<a> | direct | direct-nocm | direct-noclim | direct-nobrg | direct-aft:<dist>
+MODEL: own_rate | eb:<a> | direct | direct-tuned | direct-nocm | direct-noclim | direct-nobrg | direct-aft:<dist>
 --lopo: leave-one-plant-out instead of grouped K-fold.
 Appends one row per run to outputs/experiments.csv and prints a compact summary.
 """
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -31,6 +32,19 @@ def make(spec: str, seed: int):
              "direct-nobrg": ("brg_",)}
     if spec in drops:
         m = DirectML(drop=drops[spec], seed=seed)
+        m.name = spec
+        return m
+    if spec == "direct-tuned":  # Optuna best params from scripts/04_tune.py (defaults where a study is missing)
+        kw = {}
+        for sub, (pkey, rkey) in {"count": ("lgb_count", "rounds_count"), "aft": ("xgb_aft", "rounds_aft"),
+                                  "comp": ("lgb_comp", "rounds_comp")}.items():
+            f = Path("artifacts/tuned") / f"{sub}.json"
+            if f.exists():
+                t = json.loads(f.read_text())
+                kw[pkey], kw[rkey] = dict(t["params"]), int(t["rounds"])
+        if "xgb_aft" in kw:
+            kw["aft_dist"] = kw["xgb_aft"].pop("aft_loss_distribution", "normal")
+        m = DirectML(seed=seed, **kw)
         m.name = spec
         return m
     if spec.startswith("direct-aft:"):

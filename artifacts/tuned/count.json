@@ -1,0 +1,19 @@
+{
+ "params": {
+  "learning_rate": 0.026040565070801235,
+  "num_leaves": 17,
+  "min_data_in_leaf": 2661,
+  "feature_fraction": 0.8085659407922379,
+  "bagging_fraction": 0.6911947374828693,
+  "lambda_l2": 0.04131196339758251
+ },
+ "rounds": 878,
+ "cv_value": 0.043830802163634185,
+ "trial": 10,
+ "default_value": 0.04439380897186441,
+ "n_trials": 13,
+ "user_attrs": {
+  "rounds": 878
+ },
+ "harness": "grouped CV, 3 folds, seed 0, non-sealed conveyors"
+}

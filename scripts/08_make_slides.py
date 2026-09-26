@@ -15,7 +15,7 @@ INK, INK2 = RGBColor(0x0B, 0x0B, 0x0B), RGBColor(0x52, 0x51, 0x4E)
 SLIDES = [
     {
         "headline": "Bearings, belts and motor-reducers wear out, and load (not weather) sets how fast",
-        "left": ("beta.png", "Failure behaviour: 3 wear-out components, 2 random, software shows infant mortality"),
+        "left": ("beta.png", "Failure behaviour: 3 wear-out, 2 random, software infant mortality"),
         "right": ("load.png", "Load is a stress multiplier, not just more hours"),
         "bullets": [
             "Bearings cause 94% of failures (≈41 per conveyor-year); every failure costs exactly 36 h of downtime",
@@ -34,6 +34,8 @@ SLIDES = [
             "forecasting the failure count",
             "Young conveyors ramp up: all bearings start new (β≈3), so failures rise through year 1 before settling. "
             "Tracking every bearing's age captures this",
+            "Bad actors stay bad: a conveyor's failure rate vs. its load-class peers in years 1-10 predicts years 11-20 "
+            "(r = 0.93), so each conveyor's own history is a key forecast input",
             "Contactor wear-out is emerging (12 failures, all on a restart after repair; β≈3.7, wide CI): watch it",
         ],
     },

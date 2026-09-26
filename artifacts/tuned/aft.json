@@ -1,0 +1,21 @@
+{
+ "params": {
+  "learning_rate": 0.03290556081267688,
+  "max_depth": 4,
+  "min_child_weight": 143.38035270460276,
+  "subsample": 0.5915402933903805,
+  "colsample_bytree": 0.44016827622700305,
+  "lambda": 18.162073607042565,
+  "aft_loss_distribution": "normal",
+  "aft_loss_distribution_scale": 0.30101532673735404
+ },
+ "rounds": 303,
+ "cv_value": 0.894231413599054,
+ "trial": 202,
+ "default_value": 0.9040529799448614,
+ "n_trials": 251,
+ "user_attrs": {
+  "rounds": 303
+ },
+ "harness": "grouped CV, 3 folds, seed 0, non-sealed conveyors"
+}

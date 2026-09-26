@@ -119,7 +119,17 @@ Run from the repo root in order. Heavy steps are 03 and 05. Set `CONVEYOR_XGB_DE
 - `features.daily_features()` is causal. The same function gives training features (every origin) and inference features (last row), so never add a feature that reads rows after the origin. `labels.py` is the only code that looks forward.
 - The sealed conveyors (`evaluate.sealed_conveyors`, ~15% per plant, including P02CV27) are excluded from CV and scored once, in step 05.
 - **This exclusion also covers the hard-coded model constants**, not just CV folds: `features.BRG_BETA`/`BRG_ETA_OH` and `01_build_tables.py`'s `fleet_tmax` climatology are fit on non-sealed conveyors only (`scripts/02_reliability_analysis.py` §A2 -> `outputs/req1/weibull_bearing_ml_constants.csv`). An earlier version fit both on the full 284-conveyor fleet before the sealed split, which technically leaked into the "final exam" set; the fix moved β 2.98->2.97 and η_Light 45,880->45,886 op-h (a ~0.01% shift — the leak's practical effect was negligible, but the constants must not depend on the sealed set even in principle). The Req. 1 tables above (`weibull_by_clock.csv`, season/CM findings) intentionally keep using the full fleet — that's honest fleet-wide reporting, not a model input.
-- Grouped CV, 5 folds, seed 0, 3-year downtime error: `eb:1000` 9.1% (conveyors < 1 year old: 21%) vs `direct` **4.5%** (< 1 year old: 5.9%, bias ≈ 0). Next-failure timing is about equal (log-error 0.645 vs 0.649, mostly irreducible randomness). The 5th-failure log-error improves from 0.30 to 0.27. Component accuracy of `direct` (0.859) is slightly *below* always predicting Bearing (0.864), so the component classifier needs work.
+- Grouped CV, 5 folds, seed 0, re-verified 2026-09-26 on the gaming PC after the constant fix (`direct`: 4.48%, < 1 year old 5.94%, bias ≈ 0; unchanged).
+- **Optuna tuning** (`scripts/04_tune.py`, 3-fold grouped CV; best params in `artifacts/tuned/*.json`, used by spec `direct-tuned`). The defaults overfit: AFT best at depth 4 / ~300 rounds at lr 0.033 (was depth 6 / 400 at 0.05), component classifier best at ~80 rounds (was 300), count model 17 leaves / 878 rounds at lr 0.026. 5-fold confirmation:
+
+  | Metric | `eb:1000` | `direct` | `direct-tuned` |
+  |---|---|---|---|
+  | 3-year downtime error (all / Light / < 1 year) | 9.1% / 15.1% / 21.1% | 4.48% / 7.83% / 5.94% | **4.41% / 7.69% / 6.03%** |
+  | `t1_logerr` / `t5_logerr` | 0.649 / 0.302 | 0.645 / 0.271 | **0.632 / 0.262** |
+  | `c1_acc` (all / Light) | 0.864 / 0.764 | 0.860 / 0.756 | 0.864 / 0.764 |
+
+  The tuned classifier now equals "always Bearing" but can't beat it: the next failure's component carries almost no signal beyond the base rate.
+- **Leave-one-plant-out (unseen plant):** `direct` 9.9% (bias −302 h, Heavy 11.9%) vs `eb:1000` 10.7% (Heavy 8.8%). The model partly memorizes plant identity (static fields are plant constants). A fixed blend with `eb:1000` helps LOPO (50/50: 8.8%) but hurts grouped CV (4.4% → 6.0%), so it's not used unconditionally.
 
 ## Hard requirements for the forecasting tool
 
