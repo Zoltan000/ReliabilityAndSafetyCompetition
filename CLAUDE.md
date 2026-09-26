@@ -116,7 +116,7 @@ Run from the repo root in order. Heavy steps are 03 and 05. Set `CONVEYOR_XGB_DE
 
 - `features.daily_features()` is causal. The same function gives training features (every origin) and inference features (last row), so never add a feature that reads rows after the origin. `labels.py` is the only code that looks forward.
 - The sealed conveyors (`evaluate.sealed_conveyors`, ~15% per plant, including P02CV27) are excluded from CV and scored once, in step 05.
-- Baseline to beat (grouped CV, 5 folds, seed 0): `eb:1000` gets a 3-year downtime error of 9.1%, a next-failure log-error of 0.65, and next-component accuracy of 0.86.
+- Grouped CV, 5 folds, seed 0, 3-year downtime error: `eb:1000` 9.1% (conveyors < 1 year old: 21%) vs `direct` **4.5%** (< 1 year old: 5.9%, bias ≈ 0). Next-failure timing is about equal (log-error 0.645 vs 0.649, mostly irreducible randomness). The 5th-failure log-error improves from 0.30 to 0.27. Component accuracy of `direct` (0.859) is slightly *below* always predicting Bearing (0.864), so the component classifier needs work.
 
 ## Hard requirements for the forecasting tool
 
