@@ -69,14 +69,36 @@ Analysis of 20 years of historical daily data from all 284 conveyors across 12 p
 
 ---
 
+## Temperature–Humidity Independence
+
+An additional analysis examined whether temperature and humidity are correlated, testing whether they represent the same underlying environmental driver or independent phenomena.
+
+**Correlation results:**
+- **Fleet-wide**: +0.1319 (Temp_Max vs Humidity) — weak positive, entirely due to seasonal confounding
+- **Per-plant**: −0.0047 to +0.0045 (all near-zero) — no meaningful daily relationship
+
+**Visual evidence** (scatter plots colored by month):
+- Winter data (blue) cluster at ~21–22°C with ~47% humidity
+- Summer data (yellow) cluster at ~23–24°C with same ~47% humidity
+- The "separation" is seasonal, not causal — temperature and humidity shift together only because both respond to calendar season independently
+
+**Implication**: Temperature and humidity are **decoupled drivers**. Humidity is not a reliability covariate; it offers no signal for component failure prediction. The weak fleet-level correlation is a statistical artifact, not a physical relationship.
+
+---
+
 ## File References
 
 - **Input**: `2026-09_compet_Student_Historical_Data_V03.parquet`
-- **Generated plot**: `analysis/weather_seasonality.png`
-- **Analysis script**: `analysis/plot_weather_seasonality.py`
+- **Weather analysis**: `analysis/weather/` (seasonality plots and scripts)
+- **Correlation analysis**: `analysis/correlation/` (humidity vs temperature plots and scripts)
+- **This report**: `analysis/reports/weather_seasonality_findings.md`
 
 ---
 
 ## Conclusion
 
-The fleet exhibits a **stable, predictable seasonal temperature cycle (~3.5°C annual amplitude) that warrants inclusion as a reliability covariate**, while **humidity remains flat and offers no seasonal signal**. This supports Requirement 1 by providing concrete, data-backed evidence that operating environment (temperature) has a systematic effect on component behavior across the fleet.
+The fleet exhibits a **stable, predictable seasonal temperature cycle (~3.5°C annual amplitude) that warrants inclusion as a reliability covariate**, while **humidity remains flat, uncorrelated with temperature, and offers no predictive signal**. This supports Requirement 1 by providing concrete, data-backed evidence that operating environment effects on component behavior are driven by **thermal stress alone**, not humidity control. 
+
+**Recommendations:**
+- ✅ **Include** `Temperature_Max_C` and/or `Temperature_Min_C` as operating-environment covariates in component failure models
+- ❌ **Exclude** `Humidity_pct` — it adds no variance, correlates with nothing, and dilutes model clarity
