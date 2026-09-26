@@ -115,14 +115,13 @@ Signal flow: controller/software → contactor → motor-reducer → belt, with 
 
 ## Analysis Directory Structure
 
-All exploratory and requirement-driven analysis lives in `analysis/` with subdirectories organizing by topic:
+All exploratory and requirement-driven analysis lives in `analysis/` with subdirectories organizing by topic. Each topic subdirectory contains its scripts, plots, AND findings markdown:
 
 | Directory | Purpose | Contains |
 |-----------|---------|----------|
-| `analysis/weather/` | Operating environment analysis (seasonality, patterns) | Seasonal cycle plots (`*_seasonality*.png`), weather aggregation scripts (`plot_weather*.py`) |
-| `analysis/correlation/` | Bivariate/multivariate relationships | Correlation scatter plots (`*_vs_*.png`), correlation analysis scripts |
-| `analysis/reports/` | Findings, conclusions, interpretations | Markdown summaries (`*.md`) that synthesize plots into insights |
-| `analysis/` (root) | Legacy/utility | SQL queries (`*.sql`), utility runners (`run_sql.py`), report index |
+| `analysis/weather/` | Operating environment analysis (seasonality, correlation, patterns) | All weather-related scripts (`plot_weather*.py`, `plot_humidity*.py`), plots (`*seasonality*.png`, `*humidity_vs*.png`), and findings (`weather_seasonality_findings.md`) |
+| `analysis/<topic>/` | [Future] Other analytical topics | Component reliability, failure clustering, load effects, etc. (same structure: scripts + plots + findings.md) |
+| `analysis/` (root) | Legacy/utility | SQL queries (`*.sql`), utility runners (`run_sql.py`) |
 
 ### File Naming Conventions
 
@@ -136,17 +135,17 @@ All exploratory and requirement-driven analysis lives in `analysis/` with subdir
 
 **Reports (Markdown):**
 - `<topic>_findings.md` — e.g., `weather_seasonality_findings.md`
-- Go in `analysis/reports/`, link back to plots using relative paths (`../weather/`, `../correlation/`)
-- Each report should summarize patterns, implications for Requirements 1–3, and recommendations
+- Lives in the same subdirectory as its scripts and plots (e.g., `analysis/weather/weather_seasonality_findings.md`)
+- Each report should summarize patterns, implications for Requirements 1–3, and link to relevant plots using relative paths
 
 ### Adding New Analysis
 
 When adding analysis for a new topic (e.g., component failure clustering):
-1. Create a new subdirectory in `analysis/` if it doesn't exist (e.g., `analysis/components/`)
+1. Create a new subdirectory in `analysis/` (e.g., `analysis/components/`)
 2. Add scripts with naming pattern `plot_<topic>_<aspect>.py` to that directory
-3. Save generated plots next to the script
-4. Create a findings markdown in `analysis/reports/` summarizing insights
-5. Update this section if the new subdirectory represents a new analysis category
+3. Save generated plots in the same directory
+4. Create a findings markdown `<topic>_findings.md` in that same directory
+5. All analysis for that topic stays colocated: scripts, plots, findings together
 
 ---
 
