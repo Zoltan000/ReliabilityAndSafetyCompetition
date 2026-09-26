@@ -98,6 +98,50 @@ def make_by_load_and_renewal(comp, ev):
     plt.close(fig)
 
 
+RENEWAL_LINE_CAP = 6  # groups 0..RENEWAL_LINE_CAP-1 each get their own line; the rest pool into "cap+"
+
+
+def make_by_load_each_renewal(comp, ev):
+    """Same 3-panel-by-Load_Class layout, but every renewal index gets its own line
+    (light->dark = renewal 0->cap+) instead of collapsing to first-life vs. any-
+    replacement -- "each line represents a replacement," per request. Falls back to
+    rug ticks (via draw_group) for any renewal index too thin on data within a load
+    class, most relevant for components that rarely get replaced many times."""
+    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5))
+    cmap = plt.get_cmap("Blues")
+    for ax, load in zip(axes, ["Light", "Medium", "Heavy"]):
+        g = ev[ev.load == load].copy()
+        if g.empty:
+            ax.set_title(f"{load}  (n=0)", fontsize=11, fontweight="bold")
+            style(ax)
+            continue
+        g["ridx"] = np.minimum(g.renewal, RENEWAL_LINE_CAP)
+        x_hi = g.op_h.quantile(0.98)
+        present = sorted(g.ridx.unique())
+        shades = cmap(np.linspace(0.35, 0.95, len(present)))
+        for shade, ridx in zip(shades, present):
+            vals = g.loc[g.ridx == ridx, "op_h"].to_numpy()
+            label = f"renewal {ridx}" if ridx < RENEWAL_LINE_CAP else f"renewal {RENEWAL_LINE_CAP}+"
+            draw_group(ax, vals, x_hi, shade, label)
+        ax.set_title(f"{load}  (n={len(g):,})", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Hours until failure")
+        ax.set_ylabel("Density")
+        ax.legend(fontsize=7, frameon=False, ncol=2 if len(present) > 5 else 1)
+        style(ax)
+        if comp == "Speed_Sensor" and SPEED_SENSOR_CEILING <= x_hi:
+            ax.axvline(SPEED_SENSOR_CEILING, color=INK, ls="--", lw=1.2)
+            ax.text(SPEED_SENSOR_CEILING - x_hi * 0.02, ax.get_ylim()[1] * 0.9,
+                    "ceiling\n~50,016", ha="right", fontsize=7, color=INK)
+    fig.suptitle(f"{NAMES[comp]}: hours until failure, by load class -- every renewal index its own line\n"
+                 "(light = original/early replacement, dark = many replacements in)",
+                 fontsize=12.5, fontweight="bold", y=1.05)
+    fig.tight_layout()
+    fname = f"bell_curve_{comp.lower()}_by_load_each_renewal.png"
+    fig.savefig(OUT / fname, dpi=170, bbox_inches="tight")
+    print(f"Saved: {OUT / fname}")
+    plt.close(fig)
+
+
 def main():
     for comp in COMPONENTS:
         iv = pd.read_parquet(IN / f"intervals_{comp}.parquet")
@@ -143,6 +187,7 @@ def main():
         plt.close(fig)
 
         make_by_load_and_renewal(comp, ev)
+        make_by_load_each_renewal(comp, ev)
 
 
 if __name__ == "__main__":

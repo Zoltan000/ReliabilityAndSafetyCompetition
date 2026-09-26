@@ -281,6 +281,70 @@ for anyone reusing `plot_other_component_bell_curves.py` or
   just looks taller/narrower because it has far more data (e.g. Belt/Heavy: n=58
   first-life vs. n=2,524 replacement), not because it's a genuinely different shape.
 
+## 9. Is Control_Software's load effect statistically real? — exposure-adjusted rate test
+
+Raised directly: is the §8 "Light fails ~31x more" claim actually solid, or another
+case like the retracted §5 throughput claim? Checked properly this time, and the two
+situations are different in an important way. At-risk exposure time (not just conveyor
+counts) pulled directly from the fleet file, then an exact binomial rate-ratio test
+(conditional on total failures, standard method for comparing two Poisson rates):
+
+| Comparison | Rate ratio | 95% CI | p-value |
+|---|---:|---:|---:|
+| Heavy vs. Light | 0.044 | [0.005, 0.031] | 5.6×10⁻⁴³ |
+| Heavy vs. Medium | 0.260 | [0.044, 0.234] | 5.6×10⁻⁴ |
+| Medium vs. Light | 0.167 | [0.075, 0.132] | 1.5×10⁻⁴⁶ |
+
+Rates (per million at-risk-days): Heavy 19.8, Medium 76.1, Light 455.2.
+
+**This is not the same situation as the retracted §5 throughput claim, and the
+distinction matters.** In §5, the effect size itself was tiny (|ρ| ≤ 0.13) and the
+"significance" was purely a large-n artifact — real-world meaningless correlation
+inflated to a tiny p-value by having >100,000 data points. Here the effect size is
+enormous (23–45x, not a fraction of a correlation point), consistent in direction
+across all three pairwise comparisons, exposure-adjusted (not just raw counts, which
+would conflate the effect with the different number of conveyors and different
+downtime per load class), and matches an independent estimate already on file
+(η ratio = 23.7 in `weibull_by_clock.csv`, from a completely different method — Weibull
+MLE vs. a nonparametric rate-ratio test). Three independent lines of evidence agreeing
+is what "statistically real" should look like; §5 never had that.
+
+## 10. Does `Failed_Component_ID` carry unused information for non-Bearing failures?
+
+Checked directly against the fleet file rather than assumed: `Failed_Component_ID` is
+**null for every single non-Bearing failure** — 0 non-null values across all 7,822
+Belt, 4,265 Motor-Reducer, 1,838 Speed-Sensor, 1,537 Controller-PC, 463
+Control-Software, and 12 Contactor failures. This matches the spec's own description
+("blank when no specific subcomponent ID is needed") — each conveyor has exactly one
+of each of these parts, so `Failure_Type` alone already fully identifies which
+physical part failed; there's no sub-identifier for the field to carry. It's populated
+only for Bearings (`BRG_001`, etc.), which is the one component with multiple physical
+units per conveyor — and that field is already the foundation of the entire §3/§5/§7
+per-position bearing analysis. Nothing was missed here; there is nothing else to find
+in that column.
+
+## 11. Every renewal index as its own line — [`bell_curve_*_by_load_each_renewal.png`](.)
+
+![Belt by load, each renewal](bell_curve_conveyor_belt_by_load_each_renewal.png)
+
+Extends §8's cross-view: instead of collapsing to first-life vs. any-replacement,
+every renewal index gets its own curve (capped at 6+, pooled beyond that to keep the
+legend readable), light-to-dark by renewal count, still one panel per `Load_Class`.
+Small-n renewal indices fall back to rug ticks via the same `draw_group` logic as
+elsewhere (visible for Heavy Control_Software and high-renewal Speed_Sensor/Heavy,
+which run out of data fastest).
+
+- **Belt/Motor-Reducer: renewal indices 0–5 track each other almost exactly** within
+  each load class — the cleanest possible visual for perfect renewal, now shown at
+  full resolution instead of collapsed into two groups. The "6+" bucket sits slightly
+  different mainly because it pools a huge renewal-count range into one bin (up to
+  renewal 48 for Heavy Belt), not because later replacements are truly different.
+- **Speed_Sensor is noisier at this resolution** (fewer events per renewal-index bin),
+  but the ceiling effect is visible unevenly across renewal indices rather than
+  cleanly concentrated in one — consistent with §1/§6's finding that the ceiling is a
+  per-unit design-life cap that applies regardless of how many times that conveyor's
+  sensor has been replaced.
+
 ## Recommendation for slide placement
 
 - **Hazard-vs-age (§1)** is the strongest new candidate — it reads faster than
