@@ -20,6 +20,8 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_motor_precursor_field_scan.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_precursor_scan_all_components.py
+uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy --with scipy \
+  python analysis/failure_interactions/plot_motor_indicator_distributions.py
 ```
 
 ## Overview
@@ -256,6 +258,43 @@ hot in general.
 - **Bearing: essentially nothing** (vibration +0.06 at most) — matches the existing "bearings: ≈+0.05 only" note; bearing failures remain the hardest to see coming from condition-monitoring signals.
 - **Controller_PC: essentially nothing** (all fields ≤0.06σ) — consistent with its near-random Weibull fit (β≈0.99).
 - **Speed_Sensor (−0.13σ) and Control_Software (−0.27σ) both show ambient temperature "declining" before a failure — checked, and this is a seasonal-clustering artifact, not a new physical precursor.** Cross-referenced against `outputs/req1/season_effect.csv` (already computed, independent of this analysis): both components' Light-class failures (the dominant subgroup for each) peak in fall (SON: 1.42 for Speed_Sensor, 1.36 for Control_Software) and dip in spring/summer — so the 30-day pre-failure window is disproportionately drawn from the cooling part of the year relative to the 61-120-day-back baseline window. That produces exactly this "declining ambient temperature" signature without temperature causing anything. Worth remembering as a general caveat for this method: any field with a real seasonal pattern will show up here if the target failure type has any seasonal clustering at all, whether or not there's a causal relationship — the fix is exactly what was just done, cross-check against the independent seasonal-rate table before trusting a shift as causal.
+
+## 9. What the motor actually does before it fails, in real units — [`motor_indicator_distributions.png`](motor_indicator_distributions.png)
+
+**Source:** [`motor_indicator_distributions.csv`](motor_indicator_distributions.csv), built by [`plot_motor_indicator_distributions.py`](plot_motor_indicator_distributions.py).
+
+![Motor indicator distributions](motor_indicator_distributions.png)
+
+One PNG, one panel per Motor_Reducer precursor field (the 6 identified in §7/§8), each
+showing the actual real-unit distribution (Amps, °C, mm/s, mV) on normal days vs. the
+30 days before a failure — the same information as §7/§8's z-scores, but in physical
+units instead of an abstract score, and as full distributions instead of single
+numbers.
+
+**Caught and fixed a real bug before presenting this:** a first version pooled raw
+values across all conveyors directly, and `Current_per_Throughput` came out **negative**
+(−2.8%) — contradicting §7/§8's more careful within-conveyor result, which found it
+strongly positive (+0.32σ, third-strongest mover). Checked why: Heavy/Medium conveyors
+fail by Motor_Reducer far more often than Light ones, so the pre-failure sample is
+more Heavy/Medium-weighted (68%) than the normal-days sample (49%) — confirmed
+directly (`normal: Heavy 16%/Medium 33%/Light 51%` vs. `pre-failure: Heavy 24%/Medium
+44%/Light 32%`). Since throughput scales a lot with load, that composition shift alone
+can move a naively pooled average with zero real day-to-day change — the same class of
+confound already caught and corrected twice earlier in this session (the retracted
+bearing-throughput claim, the raw vs. adjusted cross-conveyor correlation). Fixed by
+centering each conveyor on its own mean before pooling, then re-adding the fleet-wide
+mean — keeps the values in real, interpretable units while removing the
+between-conveyor mixing. After the fix, all 6 fields agree in direction with §7/§8.
+
+- Motor temp − ambient: 22.97°C → 26.53°C (+16%)
+- Vibration RMS: 2.52 → 2.78 mm/s (+10%)
+- Motor temperature: 45.77°C → 49.29°C (+8%)
+- Motor current, contactor voltage drop, current/throughput: each +3-4%
+
+The distributions themselves are the useful part beyond the numbers: every pre-failure
+histogram is shifted right **and** visibly longer-tailed than the normal-days one, most
+dramatically for motor temperature and motor temp − ambient, where the pre-failure
+distribution stretches out well past where normal operation ever reaches.
 
 ## Implications for Req. 1
 
