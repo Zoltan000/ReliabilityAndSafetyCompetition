@@ -18,6 +18,8 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy -
   python analysis/failure_interactions/plot_motor_failure_precursor_by_load.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_motor_precursor_field_scan.py
+uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
+  python analysis/failure_interactions/plot_precursor_scan_all_components.py
 ```
 
 ## Overview
@@ -242,6 +244,18 @@ hot in general.
 
 - **The ramp-up is gradual and roughly linear over the full 60-day window, not a late spike.** All 6 top-moving signals climb steadily from day -60 to day 0 with no sudden onset — the degradation is progressive, which means there's a genuinely long usable lead time for a forecasting feature, not just a last-few-days warning.
 - **Unplanned bonus finding: every signal crashes below baseline immediately after the repair**, and stays there through day +10. This is real, not noise: a freshly replaced motor-reducer runs cooler, draws less current, and vibrates less than the conveyor's own long-run average (which is pulled up by the aging unit that just failed) — an independent visual confirmation of the perfect-renewal finding (§2/§3 in `reliability_over_time_findings.md`) from the condition-monitoring side instead of the lifetime side. The single-day gap right after the failure is the mandatory 1-day corrective-downtime day (verified elsewhere as exactly 1 day, every failure, no exceptions) — no operating data exists that day, so there's nothing to plot.
+
+## 8. The same scan, generalized to all 7 failure types — [`precursor_shift_heatmap.png`](precursor_shift_heatmap.png)
+
+**Source:** [`precursor_shift_all_components.csv`](precursor_shift_all_components.csv), [`precursor_trajectory_all_components.csv`](precursor_trajectory_all_components.csv), built by [`plot_precursor_scan_all_components.py`](plot_precursor_scan_all_components.py). Same methodology as §7, generalized from Motor_Reducer to every component: the fleet fetch and the 16-field z-score matrix are computed once and reused across all 7 (only the per-component failure-day lookup repeats), so this runs in ~6 seconds despite covering the whole fleet 7 times over. Contactor is skipped (12 fleet-wide failures, only a handful with the required 120-day history — below the same `MIN_EVENTS=20` guard used elsewhere) rather than forcing a noisy result.
+
+![Precursor shift heatmap, all components](precursor_shift_heatmap.png)
+
+- **Motor_Reducer is, by a wide margin, the component with the strongest and broadest precursor signature** — 6 fields clear 0.2σ (§7). Every other component shows at most one or two fields moving, and most show none.
+- **Conveyor_Belt: vibration only** (+0.23σ) — matches the number already on file in `outputs/req1/cm_precursors.csv`, a useful sanity check that this more comprehensive scan reproduces the established result rather than contradicting it. Its trajectory ([`precursor_trajectory_conveyor_belt.png`](precursor_trajectory_conveyor_belt.png)) shows the same gradual, roughly-linear 60-day ramp as Motor_Reducer's vibration — good news for lead time on Belt too. (That trajectory also has a large, dramatic-looking spike in "Roller revolutions/day" right at day 0-2 — not a real finding, just the already-established fact that the mandatory 1-day corrective-downtime has 0 operating hours, restated in z-score form; the restart day right after shows the mirror-image rebound.)
+- **Bearing: essentially nothing** (vibration +0.06 at most) — matches the existing "bearings: ≈+0.05 only" note; bearing failures remain the hardest to see coming from condition-monitoring signals.
+- **Controller_PC: essentially nothing** (all fields ≤0.06σ) — consistent with its near-random Weibull fit (β≈0.99).
+- **Speed_Sensor (−0.13σ) and Control_Software (−0.27σ) both show ambient temperature "declining" before a failure — checked, and this is a seasonal-clustering artifact, not a new physical precursor.** Cross-referenced against `outputs/req1/season_effect.csv` (already computed, independent of this analysis): both components' Light-class failures (the dominant subgroup for each) peak in fall (SON: 1.42 for Speed_Sensor, 1.36 for Control_Software) and dip in spring/summer — so the 30-day pre-failure window is disproportionately drawn from the cooling part of the year relative to the 61-120-day-back baseline window. That produces exactly this "declining ambient temperature" signature without temperature causing anything. Worth remembering as a general caveat for this method: any field with a real seasonal pattern will show up here if the target failure type has any seasonal clustering at all, whether or not there's a causal relationship — the fix is exactly what was just done, cross-check against the independent seasonal-rate table before trusting a shift as causal.
 
 ## Implications for Req. 1
 
