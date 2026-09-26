@@ -12,6 +12,8 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_failure_transition_lift.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_failure_hazard_window.py
+uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
+  python analysis/failure_interactions/plot_motor_signal_correlation.py
 ```
 
 ## Overview
@@ -164,6 +166,34 @@ classes the same way as §3.
 - Every row below Bearing/Belt/Motor-Reducer has thin denominators (Contactor:
   785 total post-window at-risk days from only 12 failures) — read those cells as
   suggestive at best.
+
+## 5. Motor signals: voltage, temperature, current — [`motor_signal_correlation.png`](motor_signal_correlation.png)
+
+![Motor signal correlation](motor_signal_correlation.png)
+
+A focused 3×3 scatter-matrix pulling `Voltage_V`, `Motor_Temperature_C`, and
+`Motor_Current_A` out of the full `cm_signal_correlation_heatmap.png` (§1) for a direct
+look, colored by `Load_Class` throughout (current and temperature are both already
+known to be load-driven, so a pooled correlation risks the same load confound already
+found and corrected elsewhere in this analysis — checked here, see below), and with
+each point marked if it falls in the 30-day window before a `Motor_Reducer` failure
+(the same window `outputs/req1/cm_precursors.csv` already scores numerically).
+
+- **Voltage is unrelated to either motor signal** (r=+0.044 with temperature,
+  r=+0.073 with current) — consistent with voltage being a plant-level constant with
+  no real load dependence.
+- **Temperature and current are strongly correlated** (r=+0.784 overall) and, unlike
+  the retracted within-load throughput claim, **this one survives being checked within
+  each load class separately** (Light 0.65, Medium 0.76, Heavy 0.77) — a real
+  relationship, not a pooling artifact.
+- **Load class cleanly separates both signals** (diagonal histograms: Light lowest,
+  Medium middle, Heavy highest, barely overlapping) — the most direct visual yet of
+  the load-stress effect on the motor specifically.
+- **Pre-failure points sit toward the upper-right of the temperature/current band**
+  within every load class — both signals elevated together shortly before a
+  Motor-Reducer failure, matching `cm_precursors.csv`'s precursor scores
+  (current/throughput +0.31σ, motor temp excess +0.38σ) as an actual picture rather
+  than a single summary number.
 
 ## Implications for Req. 1
 
