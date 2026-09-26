@@ -1,0 +1,28 @@
+[project]
+name = "conveyor"
+version = "0.1.0"
+description = "Industrial Conveyor Reliability Data Challenge: fleet analysis and forecasting tool"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "duckdb>=1.0",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "lightgbm>=4.3",
+    "xgboost>=2.0",
+    "optuna>=3.5",
+    "lifelines>=0.28",
+    "shap>=0.45",
+    "matplotlib>=3.8",
+    "nbformat>=5.9",
+    "python-pptx>=0.6.23",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

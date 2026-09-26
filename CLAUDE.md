@@ -58,7 +58,65 @@ Fleet file shape (checked 2026-09-26): 20 years of data, 2005-01-01 to 2024-12-3
 
 The two example files are cut-off prefixes of P02CV27, which is also in the fleet file. This matters for validation: when backtesting on P02CV27 (or any cut-off), keep that conveyor's post-cut-off rows out of training, or the result is leakage.
 
-Python env note: `pyarrow` is not installed in the local system Python. Install `pandas pyarrow` in a venv before reading the Parquet files (Colab has both).
+Python env note: dependencies are in `pyproject.toml`. Locally: `python -m venv .venv` and `.venv/Scripts/python -m pip install -e .` (or `uv sync`). Run scripts with `.venv/Scripts/python`. Set `PYTHONIOENCODING=utf-8` when DuckDB prints tables on Windows.
+
+Plan of record: [docs/PLAN.md](docs/PLAN.md). It uses direct supervised models on as-of-origin features with future labels, grouped CV by conveyor, and climatology for weather.
+
+### Confirmed EDA facts (`scripts/00_eda_checks.py`, 2026-09-26)
+
+- **Everything static is plant-level.** Each plant has exactly one `Load_Class` and one `Bearing_Count`. Load class is therefore fully confounded with plant. Conveyor IDs are contiguous (CV01..CVn) in every plant, with no gaps.
+- **Weather is plant constants plus i.i.d. per-conveyor daily noise**, not a shared plant series. Temperature is a plant × season step function; the steps fall exactly on Mar 1, Jun 1, Sep 1 and Dec 1. Its residual SD is 0.28 °C, lag-1 autocorrelation ≈ 0, and year-to-year SD 0.005. Humidity is a plant constant (40–55%, SD 2.9), and voltage is a plant constant (477–483 V, SD 2.5) with no seasonality. **The expected future weather is known exactly**; the daily noise can't be forecast.
+- **Failure mechanics:**
+  - Every failure is followed by exactly 1 `CORRECTIVE_DOWNTIME` day (36 h in total).
+  - A failure can occur on the restart day right after a corrective or PM day.
+  - `RUNNING` days are always 24 h, and cycles (0/1) occur only on restart days.
+- **Planned maintenance** is nominally on 03-15, 07-15 and 12-15. If the conveyor is down that day, maintenance is postponed by a few days.
+- **Daily failure probability is flat in days since restart** within a load class: Heavy ≈ 0.27, Medium ≈ 0.148, Light ≈ 0.027 per at-risk day. The restart day itself is higher (Heavy 0.40, Medium 0.178). The apparent decline with days since restart is only load-class selection.
+- **Contactor:** all 12 failures happened on the restart day after a failure plus corrective day, which points to cycle-driven wear. **Control software** failures follow ordinary running days and have `Operating_Hours_Since_Restart` = 0.
+- `Sensor_Replacement` = 1 exactly on `Speed_Sensor` failures. Bearing IDs go up to `BRG_<Bearing_Count>`.
+
+### Req. 1 findings (`scripts/02_reliability_analysis.py` → `outputs/req1/`)
+
+- **Weibull renewal fits**, right-censored, with load class as an AFT covariate:
+
+  | Component | β | η Light (op h) | Heavy/Light η | Behaviour |
+  |---|---|---|---|---|
+  | Bearing (per position) | 2.98 | 45,880 | 0.079 | wear-out |
+  | Belt | 2.98 | 13,930 | 0.18 | wear-out |
+  | Motor-reducer | 2.33 | 19,500 | 0.28 | wear-out |
+  | Speed sensor | 1.19 | 22,750 | 1.05 | near-random |
+  | Controller PC | 0.99 | 27,120 | 0.96 | random |
+  | Control software | 0.91 | 51,400 | 23.7 | infant mortality; Light fails *more* |
+  | Contactor | ≈3.5 | n/a | n/a | wear-out, n = 12; CI 2.1–6.4 |
+
+- **Operating hours are the right clock for the speed sensor and PC**, since load has no effect on them. For bearings, belt and motor-reducer, load is a *stress multiplier* on op-hour life, and no exposure clock absorbs it. The cycles clock is endogenous: cycles only happen at restarts after failures, so don't read it as causal.
+- **Every component renews perfectly.** First-life η equals renewed η, and mean life is flat across renewal index within each load class.
+  - Correction to `fleet_kpis_report.md`: "replacement belts last 34% less" is a Simpson's-paradox artifact, because replacements are dominated by Heavy conveyors.
+  - The Light-bearing decline with renewal index is a selection effect.
+- **Weather doesn't drive failures.** The season ratio for bearings is ≈1.00. Same-day temperature, humidity and voltage residuals give failure-rate ratios of ≈1. Motor-reducer is slightly lower in summer (≈0.9), which is weak.
+- **CM precursors**, as the within-conveyor z-shift over the 30 days before a failure:
+  - vibration: +0.23 before belt failures, +0.21 before motor-reducer failures;
+  - motor current/throughput: +0.31 before motor-reducer failures;
+  - motor temperature excess: +0.38 before motor-reducer failures;
+  - bearings: ≈+0.05 only.
+
+## Modeling pipeline (`src/conveyor/`, `scripts/`)
+
+Run from the repo root in order. Heavy steps are 03 and 05. Set `CONVEYOR_XGB_DEVICE=cuda` to train the XGBoost AFT models on a GPU; LightGBM runs on the CPU.
+
+| Step | Command | Output |
+|---|---|---|
+| EDA checks | `python scripts/00_eda_checks.py` | printed facts (recorded above) |
+| Tables | `python scripts/01_build_tables.py` | `outputs/cache/{features,labels}.parquet` (weekly origins from day 200), `artifacts/climatology.json`; asserts truncation and example-file parity |
+| Req. 1 | `python scripts/02_reliability_analysis.py` | `outputs/req1/*.csv` |
+| CV | `python scripts/03_cv.py own_rate eb:1000 direct direct-nocm ...` (`--lopo` for leave-one-plant-out) | one row per run in `outputs/experiments.csv`; OOF preds in `outputs/cache/oof_*.npz` |
+| Final | `python scripts/05_fit_final.py --spec direct --seeds 5` | sealed-test score (run once), `artifacts/model_seed*/`, `artifacts/manifest.json` |
+| Notebook | `python scripts/06_build_notebook.py --raw-base https://raw.githubusercontent.com/<owner>/<repo>/<sha> --team "..."` | `notebooks/Conveyor_Forecast.ipynb` |
+| Figures / slides | `python scripts/07_figures.py`, `python scripts/08_make_slides.py --names "..."` | `outputs/figures/*.png`, `outputs/Req1_slides.pptx` |
+
+- `features.daily_features()` is causal. The same function gives training features (every origin) and inference features (last row), so never add a feature that reads rows after the origin. `labels.py` is the only code that looks forward.
+- The sealed conveyors (`evaluate.sealed_conveyors`, ~15% per plant, including P02CV27) are excluded from CV and scored once, in step 05.
+- Baseline to beat (grouped CV, 5 folds, seed 0): `eb:1000` gets a 3-year downtime error of 9.1%, a next-failure log-error of 0.65, and next-component accuracy of 0.86.
 
 ## Hard requirements for the forecasting tool
 

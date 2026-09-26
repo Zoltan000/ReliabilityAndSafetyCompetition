@@ -1,1 +1,7 @@
 2026-09_compet_Student_Historical_Data_V03.parquet
+.venv/
+outputs/cache/
+__pycache__/
+*.egg-info/
+outputs/*.log
+outputs/req1/*.parquet
