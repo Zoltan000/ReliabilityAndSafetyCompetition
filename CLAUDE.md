@@ -4,7 +4,7 @@ Guidance for Claude Code in this repository.
 
 ## Project
 
-Entry for the **Industrial Conveyor Reliability Data Challenge**. The spec is `Conveyor_Competition_Requirements_V04.docx`, which is authoritative. Read it with `textutil -convert txt -stdout <file>`. The work uses daily historical data from a fleet of indoor, fixed-speed flat-belt conveyors to:
+Entry for the **Industrial Conveyor Reliability Data Challenge**. The spec is `Conveyor_Competition_Requirements_V04.docx`, which is authoritative. Read it with `textutil -convert txt -stdout <file>`, or read the Markdown copy, `Conveyor_Competition_Requirements_V04.md` (figure in `images/`). The work uses daily historical data from a fleet of indoor, fixed-speed flat-belt conveyors to:
 
 1. **Explain component reliability** (Req. 1): patterns, operating effects, failure behaviour, differences between components, and uncertainty, all backed by the data.
 2. **Predict the next 5 failures** (Req. 2): for each one, the failure type/component and the expected date and/or time from the last observed day.
@@ -12,11 +12,35 @@ Entry for the **Industrial Conveyor Reliability Data Challenge**. The spec is `C
 
 Req. 2 and 3 must come from **one reusable tool**. It takes a Parquet path for a single, unseen conveyor and forecasts from that conveyor's last observed day.
 
-## Deliverables
+## All deliverables (spec §5–7)
 
-- **Google Colab notebook** with the complete Req. 2 and 3 workflow. Organizers will point it at a hidden Parquet file and run it **with no code changes**. The notebook must stay unchanged for 7 days after submission.
-- **Printed copy of the Colab** (PDF), emailed before the submission deadline. It must match the submitted notebook exactly.
-- **Exactly 2 PowerPoint slides** with Req. 1 conclusions only. No title or intro slide. Every participant's name goes on both slides. They support a ~3-minute oral presentation, so lead with the strongest defensible findings and leave out code details.
+The spec asks for two layers: the technical content (§5–6) and the submission format that carries it (§7). §7 adds to §5–6; it doesn't replace them. Method choice is free: reliability, statistical, ML, or hybrid.
+
+### Technical content (§5–6)
+
+| Req. | Deliverable | Must contain |
+|---|---|---|
+| 1 | **Component reliability understanding** (from the fleet file) | For each modeled component: meaningful patterns, relationships, differences between components, operating effects, failure behaviour, and uncertainty, all supported by the data. The goal is to show what the evidence says, not to reproduce a predefined model. Goes on the 2 slides |
+| 2 | **Next-five-failures forecast** (from the tool) | 5 predicted failures in order. For each: the expected failure type/component, and when, as an expected date and/or time from the last observed day |
+| 3 | **3-year downtime forecast** (from the tool) | A time-resolved forecast covering the 3 years right after the last observed day, showing how expected downtime evolves (e.g. monthly + cumulative), plus the **expected total downtime** |
+| 2+3 | **Reusable forecasting tool** (§6) | Takes a path to one conveyor's Parquet file (same columns as the fleet file) and reads it automatically. Uses **all** rows supplied. Detects the last observed day itself: no fixed row count, year count, or end date. Works from ≥200 days of history (§6; §5 says ≥250). Runs with no change to analysis/model logic. Uses the **same method** on `Example_P02CV27_1Year.parquet`, `Example_P02CV27_6Years.parquet`, and the hidden file |
+
+### Submission format (§7)
+
+| # | Deliverable | Covers | Must satisfy |
+|---|---|---|---|
+| 1 | **Google Colab notebook** | Req. 2 + 3 | Complete forecasting workflow. It accepts a Parquet path (§6) and runs with **no changes to analysis or model logic** on any file with ≥200 days of history. It must stay **unchanged for 7 days after submission** so organizers can reproduce the result |
+| 2 | **Printed Colab record** | Req. 2 + 3 | A printed copy (PDF) of the **complete** submitted notebook, **emailed by the submission deadline**. It is the evidence of the submitted version, so it must match the frozen notebook exactly |
+| 3 | **Exactly 2 PowerPoint slides** | Req. 1 only | Both slides carry results/conclusions: no title or intro slide. **Every participant's name on each slide.** Findings must read directly without narration |
+| 4 | **Oral presentation** | Req. 1 | About 3 minutes over the 2 slides. Lead with the clearest, strongest, most defensible findings. Skip code and implementation details unless a conclusion depends on them |
+
+Acceptance test from the spec: *the organizers point the unchanged Colab at a Parquet file and get the next-five-failure forecast and the three-year downtime forecast.* The same technical solution must run on the example files and on the hidden file.
+
+Submission-day checklist:
+- Run the final notebook top to bottom in a fresh Colab runtime on both example files, then print that exact version to PDF.
+- After submitting, don't edit, re-run-and-save, or move the notebook or any file it loads (e.g. fleet data or fitted models on Drive) for 7 days.
+- Check the slides: exactly 2, all names on both, no title slide.
+- The spec gives no email address or deadline date. Confirm both with the organizers.
 
 ## Repo files
 
