@@ -63,3 +63,29 @@ The plant tier structure aligns with availability and failure patterns in [`../f
 **Left:** Mean Total_kg_Day by plant ±1 std (across all days and conveyors per plant). High-tier plants (P05, P11, P07, P09, P02, P04) occupy the left 6 bars; low-tier plants (P10–P03) are on the right.
 
 **Right:** Per-conveyor mean Total_kg_Day (284 points), colored by plant. Clustering by color shows within-plant homogeneity. Vertical spread between high-tier (top cluster at ~28–32K) and low-tier (bottom cluster at ~20–21K) shows between-plant stratification.
+
+## Load_Class vs. throughput — refines the 2-tier plant split above into 3 clean tiers
+
+**Source:** [`conveyor_mean_kg_day_by_load_class.csv`](conveyor_mean_kg_day_by_load_class.csv), built by [`plot_throughput_by_load_class.py`](plot_throughput_by_load_class.py).
+**Reproduce:** `uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy python analysis/throughput/plot_throughput_by_load_class.py`
+
+![Throughput by load class](throughput_by_load_class.png)
+
+The plant-tier analysis above splits the fleet into only 2 groups (high ~28–32K,
+low ~20–21K), averaging `Total_kg_Day` over all non-null days. Viewed through
+`Load_Class` instead and **restricted to `Daily_State='RUNNING'` days**, the same
+quantity resolves into 3 clean, well-separated, low-variance tiers: **Light 21,536,
+Medium 39,734, Heavy 50,340 kg/day** (per-conveyor means; SD within each class is
+under 2% of its mean).
+
+That's a materially different picture from the plant-tier "high" bucket (~28–32K) —
+Medium and Heavy don't just refine that bucket, they resolve it into two genuinely
+distinct tiers roughly 10K kg/day apart. The reason the plant-tier version (and an
+earlier draft of this analysis, before restricting to RUNNING days) doesn't show this
+separation: averaging over all non-null days also pulls in `FAILURE_DAY` rows, which
+carry only a half day of operating hours and therefore a reduced `Total_kg_Day`.
+Heavy conveyors fail far more often than Medium ones (per `weibull_by_clock.csv`), so
+those reduced-throughput days drag Heavy's average down disproportionately, collapsing
+what should be a 3-way split into an apparent 2-way one. Restricting to full `RUNNING`
+days removes that dilution and shows what each class actually carries while operating
+normally.
