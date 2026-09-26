@@ -1,0 +1,2 @@
+artifacts/** -text
+*.parquet binary
