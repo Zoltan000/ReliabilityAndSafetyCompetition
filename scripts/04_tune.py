@@ -6,7 +6,7 @@ One study per sub-model, meant to run as parallel processes (count/comp on CPU, 
 - comp:  LightGBM multiclass for the next failure's component; objective multi_logloss (c1_acc logged).
 The number of boosting rounds is picked from the fold-averaged learning curve (a CV choice, not per-fold
 early stopping). Trial 0 is the current default, so the best is never worse than it on this harness.
-Best params -> artifacts/tuned/<sub>.json, read by the `direct-tuned` spec in 03_cv.py.
+Best params -> artifacts/tuned/<sub>.json, read by the `direct-tuned` spec (conveyor/train.py).
 
 Usage: .venv/Scripts/python scripts/04_tune.py {count,aft,comp} [--timeout 2400] [--threads 8] [--folds 3]
 """

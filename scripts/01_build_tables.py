@@ -17,12 +17,10 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from conveyor.evaluate import sealed_conveyors  # noqa: E402
 from conveyor.features import daily_features, features_asof  # noqa: E402
-from conveyor.io import clean, iter_conveyors, load_conveyor, load_fleet, season_of  # noqa: E402
-from conveyor.labels import labels_for  # noqa: E402
+from conveyor.io import clean, load_conveyor, load_fleet  # noqa: E402
+from conveyor.train import build_tables, fit_climatology  # noqa: E402
 
 FLEET = "2026-09_compet_Student_Historical_Data_V03.parquet"
-MIN_HISTORY = 200  # origin index 199 = 200 days of history
-STEP = 7
 CACHE = Path("outputs/cache")
 ART = Path("artifacts")
 
@@ -44,33 +42,19 @@ def main():
     CACHE.mkdir(parents=True, exist_ok=True)
     ART.mkdir(exist_ok=True)
     fleet = load_fleet(FLEET)
-    # Climatology feeds the model (features.py), so it must not see the sealed conveyors: fit it on the
-    # non-sealed conveyors only, even though the fleet-wide cache below still covers every conveyor.
-    conv_plant = fleet.groupby("Conveyor_ID")["Plant_ID"].first()
-    sealed = sealed_conveyors(conv_plant)
-    clim_fleet = fleet[~fleet["Conveyor_ID"].isin(sealed)]
-    seas = season_of(clim_fleet["Date"])
-    fleet_tmax = [float(clim_fleet["Temperature_Max_C"][seas == s].mean()) for s in range(4)]
-    (ART / "climatology.json").write_text(json.dumps({"fleet_tmax_by_season_DJF_MAM_JJA_SON": fleet_tmax}, indent=1))
-    print(f"loaded {len(fleet):,} rows in {time.time()-t0:.0f}s ({len(sealed)} sealed conveyors excluded from "
+    # Climatology feeds the model (features.py), so it is fit on the non-sealed conveyors only, even though
+    # the fleet-wide cache below still covers every conveyor.
+    n_sealed = len(sealed_conveyors(fleet.groupby("Conveyor_ID")["Plant_ID"].first()))
+    fleet_tmax = fit_climatology(fleet)
+    (ART / "climatology.json").write_text(json.dumps({"fleet_tmax_by_season_DJF_MAM_JJA_SON": fleet_tmax}, indent=1),
+                                        newline="\n")  # LF on every OS: the manifest hashes these bytes
+    print(f"loaded {len(fleet):,} rows in {time.time()-t0:.0f}s ({n_sealed} sealed conveyors excluded from "
           f"climatology); fleet Tmax by season {np.round(fleet_tmax, 2)}")
 
-    feats, labs = [], []
-    for cid, df in iter_conveyors(fleet):
-        n = len(df)
-        origins = np.arange(MIN_HISTORY - 1, n - 1, STEP)
-        daily = daily_features(df, fleet_tmax)
-        feats.append(daily.iloc[origins].reset_index(drop=True))
-        labs.append(labels_for(df, origins))
-        if cid == "P02CV27":
-            p02 = df
-    X = pd.concat(feats, ignore_index=True)
-    Y = pd.concat(labs, ignore_index=True)
-    assert (X["Conveyor_ID"].to_numpy() == Y["Conveyor_ID"].to_numpy()).all()
-    assert (X["Date"].to_numpy() == Y["Date"].to_numpy()).all()
+    X, Y = build_tables(fleet, fleet_tmax)
+    p02 = clean(fleet[fleet["Conveyor_ID"] == "P02CV27"])
     X.to_parquet(CACHE / "features.parquet", index=False)
     Y.to_parquet(CACHE / "labels.parquet", index=False)
-    print(f"features {X.shape}, labels {Y.shape}, built in {time.time()-t0:.0f}s")
 
     # Parity / leakage checks.
     worst = check_parity(p02, fleet_tmax, [199, 364, 1000, 2190, 7000])

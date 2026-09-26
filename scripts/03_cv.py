@@ -6,7 +6,6 @@ MODEL: own_rate | eb:<a> | direct | direct-tuned | direct-nocm | direct-noclim |
 Appends one row per run to outputs/experiments.csv and prints a compact summary.
 """
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -16,56 +15,16 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from conveyor.evaluate import cv_folds, score_by, sealed_conveyors  # noqa: E402
-from conveyor.models import DirectML, EmpiricalBayes, OwnRate  # noqa: E402
+from conveyor.train import oof_predict  # noqa: E402
 
 CACHE = Path("outputs/cache")
 SHOW = ["t1_logerr", "t5_logerr", "t1_mae", "t5_mae", "c1_acc", "c5_acc",
         "dt_tot_abs", "dt_tot_pct", "dt_tot_bias", "dt_month_rmse", "fail_tot_pct"]
 
 
-def make(spec: str, seed: int):
-    if spec == "own_rate":
-        return OwnRate()
-    if spec.startswith("eb:"):
-        return EmpiricalBayes(float(spec.split(":")[1]))
-    drops = {"direct": (), "direct-nocm": ("cm_",), "direct-noclim": ("temp_", "humidity", "voltage"),
-             "direct-nobrg": ("brg_",)}
-    if spec in drops:
-        m = DirectML(drop=drops[spec], seed=seed)
-        m.name = spec
-        return m
-    if spec == "direct-tuned":  # Optuna best params from scripts/04_tune.py (defaults where a study is missing)
-        kw = {}
-        for sub, (pkey, rkey) in {"count": ("lgb_count", "rounds_count"), "aft": ("xgb_aft", "rounds_aft"),
-                                  "comp": ("lgb_comp", "rounds_comp")}.items():
-            f = Path("artifacts/tuned") / f"{sub}.json"
-            if f.exists():
-                t = json.loads(f.read_text())
-                kw[pkey], kw[rkey] = dict(t["params"]), int(t["rounds"])
-        if "xgb_aft" in kw:
-            kw["aft_dist"] = kw["xgb_aft"].pop("aft_loss_distribution", "normal")
-        m = DirectML(seed=seed, **kw)
-        m.name = spec
-        return m
-    if spec.startswith("direct-aft:"):
-        m = DirectML(aft_dist=spec.split(":")[1], seed=seed)
-        m.name = spec
-        return m
-    raise ValueError(spec)
-
-
 def run(spec, X, Y, folds, seed, tag):
     t0 = time.time()
-    oof = None
-    for k, (tr, te) in enumerate(folds):
-        itr, ite = X["Conveyor_ID"].isin(tr).to_numpy(), X["Conveyor_ID"].isin(te).to_numpy()
-        model = make(spec, seed).fit(X[itr].reset_index(drop=True), Y[itr].reset_index(drop=True))
-        pred = model.predict(X[ite].reset_index(drop=True))
-        if oof is None:
-            oof = {key: np.zeros((len(X),) + np.shape(v)[1:], dtype=np.asarray(v).dtype) for key, v in pred.items()}
-        for key, v in pred.items():
-            oof[key][ite] = v
-        print(f"  fold {k+1}/{len(folds)} done ({time.time()-t0:.0f}s)", flush=True)
+    oof = oof_predict(spec, X, Y, folds, seed)
     table = score_by(oof, Y, X)
     np.savez_compressed(CACHE / f"oof_{spec.replace(':', '_')}_{tag}.npz", **oof)
     row = {"model": spec, "cv": tag, "seed": seed, "time": pd.Timestamp.now().isoformat(timespec="seconds"),

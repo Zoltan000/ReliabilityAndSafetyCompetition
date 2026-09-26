@@ -154,7 +154,7 @@ class DirectML:
         for k in range(N_NEXT):
             self.aft[k].save_model(str(d / f"aft_{k+1}.json"))
             self.comp[k].save_model(str(d / f"comp_{k+1}.txt"))
-        (d / "meta.json").write_text(json.dumps({"cols": self.cols, "name": self.name}, indent=1))
+        (d / "meta.json").write_text(json.dumps({"cols": self.cols, "name": self.name}, indent=1), newline="\n")
 
     @classmethod
     def load(cls, d):
