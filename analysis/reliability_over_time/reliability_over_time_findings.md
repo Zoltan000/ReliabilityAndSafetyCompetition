@@ -15,6 +15,10 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy -
   python analysis/reliability_over_time/plot_light_bearing_selection_effect.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy --with scipy --with pyarrow \
   python analysis/reliability_over_time/plot_bearing_lifetime_vs_load_3d.py
+uv run --no-project --with matplotlib --with pandas --with numpy --with pyarrow \
+  python analysis/reliability_over_time/plot_data_audit_ceiling_check.py
+uv run --no-project --with matplotlib --with pandas --with numpy --with scipy --with pyarrow \
+  python analysis/reliability_over_time/plot_other_component_bell_curves.py
 ```
 
 These are **candidate visualizations of already-established findings**, built for
@@ -162,16 +166,109 @@ look similar, but that's because `Bearing_Count` itself barely varies within a l
 class (58–68 for Heavy, 44–56 Medium, 32–62 Light) — not evidence of anything about
 load-sharing.
 
+## 6. Data audit: is the Speed_Sensor ceiling the only hidden artifact? — [`data_audit_ceiling_check.png`](data_audit_ceiling_check.png), [`data_audit_ceiling_check.csv`](data_audit_ceiling_check.csv)
+
+![Data audit ceiling check](data_audit_ceiling_check.png)
+
+Prompted by "the professor said there's a catch somewhere, hidden in the dataset."
+Two checks, both against the raw fleet Parquet (not a cached intermediate), to see
+whether the Speed_Sensor ceiling (§1) is one of several hidden artifacts or the only
+one:
+
+- **Every numeric column swept for the same clipping signature.** All 17 continuous
+  columns (CM signals, environment, exposure, cumulative counters) checked for
+  suspicious clustering at their min/max. Every one shows exactly the behavior normal
+  operation predicts (`RUNNING` days pinned at 24 operating hours, non-running days at
+  0, smooth natural tails elsewhere) — no other column shows anything like Speed_Sensor's
+  pattern.
+- **Whether corrective-repair downtime secretly varies by component** — CLAUDE.md
+  flags this as an assumption ("every failure = exactly 1 corrective day / 36h total")
+  that was never actually verified, only assumed. A first attempt at checking it found
+  what looked like a real violation (multi-day corrective streaks for Bearing) — that
+  turned out to be a bug in the query (a later failure's corrective days landing inside
+  the same lookahead window as an earlier one, since Heavy-conveyor bearing failures
+  cluster closely). A proper gaps-and-islands query, run directly against the fleet
+  file, confirms the assumption is exactly correct: every one of 247,117 failures,
+  every component, is followed by precisely 1 `CORRECTIVE_DOWNTIME` day. Not the catch.
+- **[`data_audit_ceiling_check.csv`](data_audit_ceiling_check.csv)** formalizes the
+  ceiling check from §1 across all 7 components using
+  `outputs/req1/intervals_<component>.parquet`: the % of a component's own failures
+  landing within 0.1% of that component's own max recorded lifetime. Speed_Sensor:
+  **8.6%**. Every other component: ≤0.02%, and those handful of "near-max" cases are
+  confirmed censored (still-running) units, not failures — i.e. just the normal fact
+  that some conveyor always has the longest observed history, not a ceiling.
+
+**Conclusion: the Speed_Sensor design-life ceiling (~50,016 op-h) is the one
+deliberate hidden artifact in the dataset**, not one of several. It matters beyond
+curiosity because it's invisible in the summary statistic everyone would naturally
+report (β≈1.19, "near-random") — only ~9% of failures are affected, hidden inside an
+otherwise-correct-looking random-failure characterization. Checked against the example
+conveyor `P02CV27`: none of its 7 observed Speed_Sensor lifetimes hit the ceiling
+(unsurprising — with a 91.4% chance of missing it per lifetime, ~55% chance of missing
+it in all 7), so this isn't visible from the example files alone. **The hidden
+evaluation conveyor could plausibly be one of the ~9% approaching it, which a
+Weibull-only model would get badly wrong.**
+
+## 7. Does bearing position (which physical slot) matter? — reuses [`bearing_position_intervals_all_loads.csv`](bearing_position_intervals_all_loads.csv)
+
+Follow-up to §5, checking the other half of "does bearing count/position matter":
+extracted each bearing's position number from `Failed_Component_ID` (e.g. `BRG_015`)
+and its position as a fraction of that conveyor's `Bearing_Count` (0 = first slot,
+1 = last slot), then checked Spearman correlation against lifetime, per load class.
+
+**Result: no effect. ρ ≈ 0.0003 to −0.028 across all three load classes** — physical
+position along the conveyor does not predict bearing lifetime. Learned from the §5
+throughput mistake: checked this properly before writing it up, rather than building a
+plot first. A bearing's slot is not a "weak point" — bearings are interchangeable
+regardless of where they sit. No figure needed; the correlation table is the finding.
+
+## 8. Bell curves for the other 5 failure types — [`bell_curve_*.png`](.)
+
+![Speed sensor bell curve](bell_curve_speed_sensor.png)
+
+Same treatment as §5/§7 extended to Conveyor_Belt, Motor_Reducer, Speed_Sensor,
+Controller_PC, and Control_Software (Contactor skipped — 12 fleet-wide failures, too
+sparse for a density estimate). Each gets two panels: by `Load_Class`, and by first
+life (renewal 0) vs. any replacement (renewal ≥1). Reuses
+`outputs/req1/intervals_<component>.parquet` directly, no fleet re-query.
+
+**Methodological note, important for anyone reusing `plot_other_component_bell_curves.py`
+or `plot_bearing_lifetime_vs_load_3d.py`:** a plain Gaussian KDE is biased near a hard
+boundary at zero — it smooths probability mass to negative values that then just
+vanish, which for a near-random or infant-mortality component (true density highest
+*at* zero) fakes a peak away from zero that isn't really there. Caught this on
+Controller_PC (β≈0.99, should have maximum density at hours=0): the first KDE attempt
+showed a false peak around 8,000 hours; the raw histogram (rate 0.079/hour in the
+first 1,000 hours, declining monotonically after) confirmed the peak was fake. Fixed
+with a standard reflection correction (mirror the data across zero, double the
+resulting density on the positive side) in both this script and
+`plot_bearing_lifetime_vs_load_3d.py` (no visible effect there — Bearing is strongly
+wear-out, so true density near zero really is ~0 — but applied for consistency).
+
+- **Speed_Sensor's bell curve is visibly bimodal** once correctly shaped: a normal
+  random-failure hump early, declining, then a second real bump right at the §1/§6
+  ceiling — both mechanisms visible in one picture.
+- **Control_Software** clearly shows its infant-mortality shape (β=0.91): Light-class
+  failures peak early (~10,000 op-h) and decay; Heavy has only 6 failures fleet-wide,
+  too few to show a real shape (flat near-zero line — a sample-size limitation, not a
+  finding).
+- **Controller_PC and Speed_Sensor (pre-ceiling) both show near-load-independent
+  curves** (all three `Load_Class` lines overlap), consistent with their β≈1 fits —
+  load doesn't shift these the way it does Bearing/Belt/Motor-Reducer.
+
 ## Recommendation for slide placement
 
 - **Hazard-vs-age (§1)** is the strongest new candidate — it reads faster than
   `beta.png` for an oral audience and the Speed_Sensor ceiling is a genuinely new,
-  surprising fact. Consider it as a replacement or companion for `beta.png`, or as the
-  figure for the still-missing `accuracy.png` slot if that slide gets rebalanced
-  toward Req. 1 evidence instead.
+  surprising fact. Consider it as a replacement or companion for `beta.png`. (Note:
+  `accuracy.png` now exists — a teammate built it separately for the Req 2/3 CV story;
+  it's a different slide slot, not a candidate for these Req 1 figures.)
 - **Renewal check (§2)** is a good companion figure specifically because the "every
   component renews perfectly" bullet currently has no visual backing it up — lowest
   risk, most direct slot-in.
-- **Frailty persistence (§3)** is the best fit for an "uncertainty" bullet/claim if one
+- **Frailty persistence (§4)** is the best fit for an "uncertainty" bullet/claim if one
   is added; the P06 finding could be a strong closing line for the oral presentation
   even without its own figure.
+- **The Speed_Sensor ceiling (§1/§6/§8)** is the single strongest "we found something
+  the naive analysis would miss" story in this whole set — worth the oral presentation
+  time even if the figure itself doesn't make the 2 slides.

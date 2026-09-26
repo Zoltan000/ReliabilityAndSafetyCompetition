@@ -1,0 +1,8 @@
+component,n_intervals,max_op_h,n_near_max,n_near_max_failures,n_near_max_censored,pct_failures_near_max
+Bearing,245118,102756.0,1,1,0,0.0
+Conveyor_Belt,8106,30192.0,1,1,0,0.01
+Motor_Reducer,4549,46452.0,1,1,0,0.02
+Speed_Sensor,2122,50016.0,158,158,0,8.6
+Controller_PC,1821,165708.0,1,0,1,0.0
+Control_Software,747,168336.0,1,0,1,0.0
+Contactor,296,168660.0,3,0,3,0.0

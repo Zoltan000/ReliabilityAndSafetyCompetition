@@ -77,8 +77,10 @@ def ridge_subplot(ax, d, z_col, z_label, color):
         vals = d.loc[d.zbin == zbin, "op_h"].to_numpy()
         if len(vals) < 30:
             continue
-        kde = gaussian_kde(vals)
-        densities = kde(xs)
+        # Reflection boundary correction (see plot_other_component_bell_curves.py): makes
+        # no visible difference for Bearing since it's strongly wear-out (true density is
+        # genuinely ~0 near hours=0), but applied for consistency/correctness.
+        densities = 2 * gaussian_kde(np.concatenate([vals, -vals]))(xs)
         # ax.plot(X, Y, Z) maps positionally to data-space axes regardless of view angle:
         # X = hours until failure, Y = density (the bell curve), Z = throughput slice.
         ax.plot(xs, densities, np.full_like(xs, zval), color=shade, lw=1.6)
