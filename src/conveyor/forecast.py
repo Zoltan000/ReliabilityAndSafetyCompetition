@@ -65,6 +65,10 @@ def apply_expert_rules(pred: dict, X: pd.DataFrame) -> dict:
         T[i] = np.concatenate([T[i, :j], [dc[i]], T[i, j:-1] + 2])
         P[i] = np.concatenate([P[i, :j], p_rule[None], P[i, j:-1]])
         R[i] = np.concatenate([R[i, :j], [True], R[i, j:-1]])
+        # Keep >= 2 days between failures (failure day + corrective day). If a failure lands the day before the
+        # ceiling date, the conveyor is down that day, accrues no sensor hours, and the sensor fails on restart.
+        for k in range(max(j, 1), N_NEXT):
+            T[i, k] = max(T[i, k], T[i, k - 1] + 2)
     for k in range(N_NEXT):
         out[f"t{k+1}"], out[f"p{k+1}"], out[f"rule{k+1}"] = T[:, k], P[:, k], R[:, k]
         out[f"c{k+1}"] = P[:, k].argmax(axis=1)
