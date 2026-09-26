@@ -81,6 +81,14 @@ whole 20-year history, then correlate those 7 rates across the 284 conveyors.
   bearing-prone for its load class is not more (or less) likely to also be
   belt-prone or motor-reducer-prone. Failure-proneness, once load is controlled, looks
   **component-specific**, not a whole-asset trait.
+- **Does the strong raw r (0.91–0.96) help the analysis?** No — it's fully redundant
+  with `Load_Class`, which is already a direct column in the data. It doesn't provide
+  any information you don't already have (you'd only need it to *infer* Load_Class
+  from failure patterns if Load_Class were missing, which it never is here). The useful
+  result of this analysis is the adjusted panel, not the raw one: it shows that once
+  you already know Load_Class, there's no additional cross-component structure left to
+  exploit — a conveyor's own per-component history is the right predictive feature,
+  not some shared "conveyor health" signal.
 
 ## 3. Failure-transition lift — does failure type *i* change what fails next?
 

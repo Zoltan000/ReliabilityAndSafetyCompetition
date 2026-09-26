@@ -265,9 +265,21 @@ for anyone reusing `plot_other_component_bell_curves.py` or
   too few for a curve) spread across nearly the full range, roughly tracking Medium's
   curve — consistent with Heavy failing by software about as rarely/randomly as
   Medium, just with fewer Heavy conveyors (58 vs. 98) to generate events over 20 years.
+  Normalized per conveyor (failures ÷ conveyor count, not raw counts, since the three
+  load classes have different fleet sizes): **Heavy 0.10, Medium 0.47, Light 3.21
+  software failures per conveyor over 20 years — Light fails ~31x more often than
+  Heavy**, the mirror image of the mechanical components (which fail *more* under
+  Heavy load). Matches the already-documented η ratio of 23.7 in `weibull_by_clock.csv`.
 - **Controller_PC and Speed_Sensor (pre-ceiling) both show near-load-independent
   curves** (all three `Load_Class` lines overlap), consistent with their β≈1 fits —
   load doesn't shift these the way it does Bearing/Belt/Motor-Reducer.
+- **Cross-view, [`bell_curve_*_by_load_and_renewal.png`](.)**: full 3-panel (one per
+  `Load_Class`) x (first-life vs. replacement overlaid per panel) breakdown for each of
+  the 5 components, each panel independently x-axis-scaled. Doubles as another visual
+  for the "perfect renewal" claim (§2): first-life and replacement curves sit in nearly
+  the same place within each load class for every component — the replacement curve
+  just looks taller/narrower because it has far more data (e.g. Belt/Heavy: n=58
+  first-life vs. n=2,524 replacement), not because it's a genuinely different shape.
 
 ## Recommendation for slide placement
 

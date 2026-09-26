@@ -67,6 +67,37 @@ def draw_group(ax, vals, x_hi, color, label):
                  label=f"{label} (n={n} — too few for a curve, actual failure times shown)")
 
 
+def make_by_load_and_renewal(comp, ev):
+    """3 panels, one per Load_Class, each with first-life vs. replacement overlaid --
+    the full cross of both groupings instead of two separate marginal views. Each
+    panel gets its own x-axis scale (load classes can differ by an order of magnitude
+    in lifetime), unlike the pooled-scale panels in the main by-load/by-renewal figure."""
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    for ax, load in zip(axes, ["Light", "Medium", "Heavy"]):
+        g = ev[ev.load == load]
+        x_hi = g.op_h.quantile(0.98) if len(g) else 1.0
+        first = g[g.renewal == 0]
+        later = g[g.renewal >= 1]
+        draw_group(ax, first.op_h.to_numpy(), x_hi, BLUE, "first life")
+        draw_group(ax, later.op_h.to_numpy(), x_hi, PURPLE, "replacement, any renewal ≥1")
+        ax.set_title(f"{load}  (n={len(g):,})", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Hours until failure")
+        ax.set_ylabel("Density")
+        ax.legend(fontsize=8, frameon=False)
+        style(ax)
+        if comp == "Speed_Sensor" and SPEED_SENSOR_CEILING <= x_hi:
+            ax.axvline(SPEED_SENSOR_CEILING, color=INK, ls="--", lw=1.2)
+            ax.text(SPEED_SENSOR_CEILING - x_hi * 0.02, ax.get_ylim()[1] * 0.9,
+                    "ceiling\n~50,016", ha="right", fontsize=7, color=INK)
+    fig.suptitle(f"{NAMES[comp]}: hours until failure, by load class and first-life vs. replacement",
+                 fontsize=13, fontweight="bold", y=1.03)
+    fig.tight_layout()
+    fname = f"bell_curve_{comp.lower()}_by_load_and_renewal.png"
+    fig.savefig(OUT / fname, dpi=170, bbox_inches="tight")
+    print(f"Saved: {OUT / fname}")
+    plt.close(fig)
+
+
 def main():
     for comp in COMPONENTS:
         iv = pd.read_parquet(IN / f"intervals_{comp}.parquet")
@@ -110,6 +141,8 @@ def main():
         fig.savefig(OUT / fname, dpi=170, bbox_inches="tight")
         print(f"Saved: {OUT / fname}")
         plt.close(fig)
+
+        make_by_load_and_renewal(comp, ev)
 
 
 if __name__ == "__main__":
