@@ -16,6 +16,8 @@ uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
   python analysis/failure_interactions/plot_motor_signal_correlation.py
 uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy --with scipy \
   python analysis/failure_interactions/plot_motor_failure_precursor_by_load.py
+uv run --no-project --with duckdb --with matplotlib --with pandas --with numpy \
+  python analysis/failure_interactions/plot_motor_precursor_field_scan.py
 ```
 
 ## Overview
@@ -226,6 +228,20 @@ conveyors run hotter/higher-current on average (§5), *and* every load class
 independently shows its own additional pre-failure spike on top of that baseline —
 this is a genuine precursor signal, not an artifact of Heavy conveyors just running
 hot in general.
+
+## 7. Deeper dive: every field scanned, plus the actual shape of the ramp-up
+
+**Source:** [`motor_precursor_field_scan.csv`](motor_precursor_field_scan.csv), [`motor_precursor_trajectory.csv`](motor_precursor_trajectory.csv), built by [`plot_motor_precursor_field_scan.py`](plot_motor_precursor_field_scan.py). Extends `outputs/req1/cm_precursors.csv`'s methodology (within-conveyor z-score, 30 days pre-failure vs. a 61-120-day-back baseline) from 5 derived signals to all 16 daily-varying numeric fields relevant to a Motor_Reducer failure, plus an event-aligned day-by-day trajectory for the top movers. The trajectory doesn't have hazard-curve-style sample thinning: every offset from -60 to +10 is averaged over the same ~4,250 failures (all `day_idx >= 120`), so there's no boundary/risk-set issue to correct for here.
+
+![Motor precursor field scan](motor_precursor_field_scan.png)
+
+- **Only the motor-adjacent cluster moves; everything else is flat.** Motor temp − ambient (+0.38σ), motor temperature (+0.36σ), current/throughput (+0.32σ), motor current (+0.29σ), raw contactor V-drop (+0.23σ), vibration (+0.21σ) are all clearly elevated. Ambient temperature, humidity, supply voltage, throughput, start/stop cycles, and roller revolutions are all essentially zero (|shift| ≤ 0.04σ) — a comprehensive scan, not just the handful of signals already known to matter, and nothing outside that cluster shows up.
+- **Confirms a normalization choice already made elsewhere:** raw `Contact_Voltage_Drop_mV` shows +0.23σ, but the normalized `VDrop_per_Current` shows only +0.01σ — the raw signal was just riding along with the current increase (it correlates ~0.97 with raw current, per §1), not an independent contactor-wear precursor. Same pattern already established in `outputs/req1/cm_precursors.csv`, now double-checked with the full field scan instead of assumed.
+
+![Motor precursor trajectory](motor_precursor_trajectory.png)
+
+- **The ramp-up is gradual and roughly linear over the full 60-day window, not a late spike.** All 6 top-moving signals climb steadily from day -60 to day 0 with no sudden onset — the degradation is progressive, which means there's a genuinely long usable lead time for a forecasting feature, not just a last-few-days warning.
+- **Unplanned bonus finding: every signal crashes below baseline immediately after the repair**, and stays there through day +10. This is real, not noise: a freshly replaced motor-reducer runs cooler, draws less current, and vibrates less than the conveyor's own long-run average (which is pulled up by the aging unit that just failed) — an independent visual confirmation of the perfect-renewal finding (§2/§3 in `reliability_over_time_findings.md`) from the condition-monitoring side instead of the lifetime side. The single-day gap right after the failure is the mandatory 1-day corrective-downtime day (verified elsewhere as exactly 1 day, every failure, no exceptions) — no operating data exists that day, so there's nothing to plot.
 
 ## Implications for Req. 1
 
