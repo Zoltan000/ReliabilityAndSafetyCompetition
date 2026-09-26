@@ -39,7 +39,7 @@ def main():
              '# A local path, a mounted Drive path (/content/drive/...), or an http(s) URL.\n'
              f'ARTIFACTS_BASE = "{a.raw_base}"  # pinned commit: artifacts cannot change after submission'),
         md("## 2. Environment"),
-        code("!pip -q install lightgbm==4.6.0 xgboost==3.2.0 pyarrow\n"
+        code("!pip -q install lightgbm==4.7.0 xgboost==3.2.0 pyarrow\n"
              "import sys, os, json, hashlib, urllib.request\n"
              "os.makedirs('conveyor', exist_ok=True)"),
         md("## 3. Tool source code\nIdentical to the tested package `src/conveyor/` in the submission repository."),
