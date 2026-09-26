@@ -145,14 +145,22 @@ different questions:
     per bearing (a conveyor with more bearings spreads the same total load across more
     support points).
 
-**Finding:** in every load class and both Z-axis definitions, higher throughput
-visibly shifts the bell curve left (shorter bearing life) — a continuous dose-response
-that holds *within* Heavy, *within* Medium, and *within* Light separately, not just
-the already-known between-class effect (Heavy/Light η ratio in `weibull_by_clock.csv`).
-The raw and per-bearing versions look qualitatively similar in shape for this fleet,
-suggesting `Bearing_Count` doesn't vary enough within a load class to change the
-story much here — but both are kept since that similarity is itself worth confirming
-rather than assuming.
+**Correction (see the dedicated writeup, [`bearing_lifetime_vs_throughput_findings.md`](bearing_lifetime_vs_throughput_findings.md), for the full numbers):**
+a first read of these plots looked like higher throughput visibly shifts the bell
+curve left *within* every load class — a within-class dose-response beyond the
+already-known between-class effect (Heavy/Light η ratio in `weibull_by_clock.csv`).
+Checking that against the underlying CSV does not support it: Spearman correlation
+between bearing life and throughput is weak (|ρ| ≤ 0.13) and **inconsistent in
+direction** (Heavy goes the *wrong* way — more throughput, slightly *longer* life;
+Light flips sign between the raw and per-bearing Z-axis definitions). Throughput also
+barely varies within a load class to begin with (5–8% range), so there isn't much of
+a "dial" to detect a within-class effect from even if one existed. **Don't cite a
+within-class throughput dose-response from these figures.** What does hold up: the
+bell shape itself confirms wear-out behavior, and the large between-class differences
+are real (§2 of the dedicated writeup). The raw and per-bearing Z-axis versions do
+look similar, but that's because `Bearing_Count` itself barely varies within a load
+class (58–68 for Heavy, 44–56 Medium, 32–62 Light) — not evidence of anything about
+load-sharing.
 
 ## Recommendation for slide placement
 
